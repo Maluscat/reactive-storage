@@ -42,7 +42,7 @@ export interface RegistrationOptions<V> {
      *
      * @default 0
      */
-    deep: number | RegistrationOptions<any>;
+    depth: number | RegistrationOptions<any>;
     /**
      * The endpoint that the registered getters and setters point to.
      *
@@ -77,7 +77,7 @@ export declare class ReactiveStorage {
      * Register a reactive property on {@link data} that points to
      * the given endpoint or {@link endpoint} if unspecified.
      *
-     * @param key The property key to register.
+     * @param key The property key to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
      * @param options Options to configure registration properties, events, etc.
      *
@@ -85,5 +85,15 @@ export declare class ReactiveStorage {
      * TODO Better typing via generics?
      */
     register<V extends any>(key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): this;
-    registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): void;
+    /**
+     * Register a reactive property on {@link data} *recursively* by traversing
+     * its initial value and registering any found arrays and object literals.
+     *
+     * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
+     *
+     * @param key The property key to register on {@link data}.
+     * @param initialValue The initial value that will be assigned after registering.
+     * @param options Options to configure registration properties, events, etc.
+     */
+    registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): void;
 }

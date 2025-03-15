@@ -43,7 +43,7 @@ export interface RegistrationOptions<V> {
    *
    * @default 0
    */
-  deep: number | RegistrationOptions<any>;
+  depth: number | RegistrationOptions<any>;
   /**
    * The endpoint that the registered getters and setters point to.
    *
@@ -97,16 +97,16 @@ export class ReactiveStorage {
    * Register a reactive property on {@link data} that points to
    * the given endpoint or {@link endpoint} if unspecified.
    *
-   * @param key The property key to register.
+   * @param key The property key to register on {@link data}.
    * @param initialValue The initial value that will be assigned after registering.
    * @param options Options to configure registration properties, events, etc.
    *
    * @privateRemarks
    * TODO Better typing via generics?
    */
-  register<V extends any>(key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>) {
+  register<V extends any>(key: any, initialValue: V, options: Partial<RegistrationOptions<V>> = {}) {
     let endpoint: Exclude<Endpoint, ReactiveStorage>;
-    if (options?.endpoint) {
+    if (options.endpoint) {
       if (options.endpoint instanceof ReactiveStorage) {
         endpoint = options.endpoint.data; 
         if (!options.endpoint.has(key)) {
@@ -115,28 +115,29 @@ export class ReactiveStorage {
       } else endpoint = options.endpoint;
     } else endpoint = this.endpoint;
 
-    let deepOptions: undefined | Partial<RegistrationOptions<V[keyof V]>>;
-    if (options?.deep) {
-      if (typeof options.deep !== 'object') {
-        deepOptions = {};
-        if (typeof options.deep === 'number') {
-          deepOptions.deep = options.deep - 1;
+    let depthOptions: undefined | Partial<RegistrationOptions<V[keyof V]>>;
+    if (options.depth) {
+      if (typeof options.depth !== 'object') {
+        depthOptions = {};
+        if (typeof options.depth === 'number') {
+          depthOptions.depth = options.depth - 1;
         }
       } else {
-        deepOptions = options.deep;
+        depthOptions = options.depth;
       }
-      deepOptions.endpoint = ReactiveStorage.#makeGetter(endpoint, key)();
+      // NOTE: Did this have any special purpose?
+      // depthOptions.endpoint = ReactiveStorage.#makeGetter(endpoint, key)();
     }
 
     let getter = ReactiveStorage.#makeGetter(endpoint, key);
     let setter = ReactiveStorage.#makeSetter(endpoint, key);
-    const customGetter = options?.getter;
-    const customSetter = options?.setter;
-    const customPostSetter = options?.postSetter;
+    const customGetter = options.getter;
+    const customSetter = options.setter;
+    const customPostSetter = options.postSetter;
 
     Object.defineProperty(this.data, key, {
       configurable: true, // TODO decide?
-      enumerable: options?.enumerable ?? true,
+      enumerable: options.enumerable ?? true,
       get: () => {
         return (customGetter?.(getter()) ?? getter()) as V;
       },
@@ -145,10 +146,10 @@ export class ReactiveStorage {
         if (!customSetter?.(val, prevVal)) {
           setter(val);
         }
-        if (deepOptions) {
+        if (depthOptions) {
           const deepStorage = new ReactiveStorage(Array.isArray(val) ? [] : {});
           for (const propKey in val) {
-            deepStorage.register(propKey, val[propKey], deepOptions);
+            deepStorage.register(propKey, val[propKey], depthOptions);
           }
           getter = () => deepStorage.data;
         }
@@ -161,7 +162,19 @@ export class ReactiveStorage {
     return this;
   }
 
-  registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>) {
+  /**
+   * Register a reactive property on {@link data} *recursively* by traversing
+   * its initial value and registering any found arrays and object literals.
+   *
+   * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
+   *
+   * @param key The property key to register on {@link data}.
+   * @param initialValue The initial value that will be assigned after registering.
+   * @param options Options to configure registration properties, events, etc.
+   */
+  registerRecursive<V extends object>(key: any, initialValue: V, options: Partial<Omit<RegistrationOptions<V>, 'deep'>> = {}) {
+    (options as Partial<RegistrationOptions<V>>).depth = Infinity;
+    this.register(key, initialValue, options as Partial<RegistrationOptions<V>>);
   }
 
   // static register<V extends any>(

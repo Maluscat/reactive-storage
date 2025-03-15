@@ -29,16 +29,16 @@ export class ReactiveStorage {
      * Register a reactive property on {@link data} that points to
      * the given endpoint or {@link endpoint} if unspecified.
      *
-     * @param key The property key to register.
+     * @param key The property key to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
      * @param options Options to configure registration properties, events, etc.
      *
      * @privateRemarks
      * TODO Better typing via generics?
      */
-    register(key, initialValue, options) {
+    register(key, initialValue, options = {}) {
         let endpoint;
-        if (options?.endpoint) {
+        if (options.endpoint) {
             if (options.endpoint instanceof ReactiveStorage) {
                 endpoint = options.endpoint.data;
                 if (!options.endpoint.has(key)) {
@@ -50,27 +50,28 @@ export class ReactiveStorage {
         }
         else
             endpoint = this.endpoint;
-        let deepOptions;
-        if (options?.deep) {
-            if (typeof options.deep !== 'object') {
-                deepOptions = {};
-                if (typeof options.deep === 'number') {
-                    deepOptions.deep = options.deep - 1;
+        let depthOptions;
+        if (options.depth) {
+            if (typeof options.depth !== 'object') {
+                depthOptions = {};
+                if (typeof options.depth === 'number') {
+                    depthOptions.depth = options.depth - 1;
                 }
             }
             else {
-                deepOptions = options.deep;
+                depthOptions = options.depth;
             }
-            deepOptions.endpoint = ReactiveStorage.#makeGetter(endpoint, key)();
+            // NOTE: Did this have any special purpose?
+            // depthOptions.endpoint = ReactiveStorage.#makeGetter(endpoint, key)();
         }
         let getter = ReactiveStorage.#makeGetter(endpoint, key);
         let setter = ReactiveStorage.#makeSetter(endpoint, key);
-        const customGetter = options?.getter;
-        const customSetter = options?.setter;
-        const customPostSetter = options?.postSetter;
+        const customGetter = options.getter;
+        const customSetter = options.setter;
+        const customPostSetter = options.postSetter;
         Object.defineProperty(this.data, key, {
             configurable: true, // TODO decide?
-            enumerable: options?.enumerable ?? true,
+            enumerable: options.enumerable ?? true,
             get: () => {
                 return (customGetter?.(getter()) ?? getter());
             },
@@ -79,10 +80,10 @@ export class ReactiveStorage {
                 if (!customSetter?.(val, prevVal)) {
                     setter(val);
                 }
-                if (deepOptions) {
+                if (depthOptions) {
                     const deepStorage = new ReactiveStorage(Array.isArray(val) ? [] : {});
                     for (const propKey in val) {
-                        deepStorage.register(propKey, val[propKey], deepOptions);
+                        deepStorage.register(propKey, val[propKey], depthOptions);
                     }
                     getter = () => deepStorage.data;
                 }
@@ -92,7 +93,19 @@ export class ReactiveStorage {
         this.data[key] = initialValue;
         return this;
     }
-    registerRecursive(key, initialValue, options) {
+    /**
+     * Register a reactive property on {@link data} *recursively* by traversing
+     * its initial value and registering any found arrays and object literals.
+     *
+     * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
+     *
+     * @param key The property key to register on {@link data}.
+     * @param initialValue The initial value that will be assigned after registering.
+     * @param options Options to configure registration properties, events, etc.
+     */
+    registerRecursive(key, initialValue, options = {}) {
+        options.depth = Infinity;
+        this.register(key, initialValue, options);
     }
     // static register<V extends any>(
     //   target: object,
