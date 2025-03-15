@@ -115,8 +115,9 @@ export class ReactiveStorage {
       } else endpoint = options.endpoint;
     } else endpoint = this.endpoint;
 
+    // TODO: Limit (inifinite) recursion to object literals and arrays instead of any object!
     let depthOptions: undefined | Partial<RegistrationOptions<V[keyof V]>>;
-    if (options.depth) {
+    if (options.depth && typeof initialValue === 'object') {
       if (typeof options.depth !== 'object') {
         depthOptions = {};
         if (typeof options.depth === 'number') {
