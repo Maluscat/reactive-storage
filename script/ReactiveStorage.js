@@ -10,7 +10,7 @@ export class ReactiveStorage {
      *
      * Values MUST NOT be overriden!
      */
-    endpoint = new Map();
+    endpoint = {};
     data;
     constructor(data = {}) {
         this.data = data;
@@ -37,6 +37,27 @@ export class ReactiveStorage {
      * TODO Better typing via generics?
      */
     register(key, initialValue, options = {}) {
+        options.endpoint ??= this.endpoint;
+        ReactiveStorage.register(this.data, key, initialValue, options);
+        return this;
+    }
+    /**
+     * Register a reactive property on {@link data} *recursively* by traversing
+     * its initial value and registering any found arrays and object literals.
+     *
+     * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
+     *
+     * @param key The property key to register on {@link data}.
+     * @param initialValue The initial value that will be assigned after registering.
+     * @param options Options to configure registration properties, events, etc.
+     */
+    registerRecursive(key, initialValue, options = {}) {
+        options.depth = Infinity;
+        this.register(key, initialValue, options);
+        return this;
+    }
+    // ---- Static methods ----
+    static register(target, key, initialValue, options = {}) {
         let endpoint;
         if (options.endpoint) {
             if (options.endpoint instanceof ReactiveStorage) {
@@ -49,8 +70,8 @@ export class ReactiveStorage {
                 endpoint = options.endpoint;
         }
         else
-            endpoint = this.endpoint;
-        // TODO: Limit (inifinite) recursion to object literals and arrays instead of any object!
+            endpoint = {};
+        // TODO: Limit (infinite) recursion to object literals and arrays instead of any object!
         let depthOptions;
         if (options.depth && typeof initialValue === 'object') {
             if (typeof options.depth !== 'object') {
@@ -70,7 +91,7 @@ export class ReactiveStorage {
         const customGetter = options.getter;
         const customSetter = options.setter;
         const customPostSetter = options.postSetter;
-        Object.defineProperty(this.data, key, {
+        Object.defineProperty(target, key, {
             configurable: true, // TODO decide?
             enumerable: options.enumerable ?? true,
             get: () => {
@@ -82,39 +103,23 @@ export class ReactiveStorage {
                     setter(val);
                 }
                 if (depthOptions) {
-                    const deepStorage = new ReactiveStorage(Array.isArray(val) ? [] : {});
+                    const deepTarget = Array.isArray(val) ? [] : {};
                     for (const propKey in val) {
-                        deepStorage.register(propKey, val[propKey], depthOptions);
+                        this.register(deepTarget, propKey, val[propKey], depthOptions);
                     }
-                    getter = () => deepStorage.data;
+                    getter = () => deepTarget;
                 }
                 customPostSetter?.(val, prevVal);
             },
         });
-        this.data[key] = initialValue;
-        return this;
+        target[key] = initialValue;
+        return endpoint;
     }
-    /**
-     * Register a reactive property on {@link data} *recursively* by traversing
-     * its initial value and registering any found arrays and object literals.
-     *
-     * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
-     *
-     * @param key The property key to register on {@link data}.
-     * @param initialValue The initial value that will be assigned after registering.
-     * @param options Options to configure registration properties, events, etc.
-     */
-    registerRecursive(key, initialValue, options = {}) {
+    static registerRecursive(key, initialValue, options = {}) {
         options.depth = Infinity;
         this.register(key, initialValue, options);
     }
-    // static register<V extends any>(
-    //   target: object,
-    //   key: ObjectKey,
-    //   initialValue: V,
-    //   options?: Partial<RegisterOptions<V>>
-    // ) {
-    // }
+    // ---- Static helpers ----
     static #makeGetter(endpoint, key) {
         if (endpoint instanceof Map) {
             return () => endpoint.get(key);

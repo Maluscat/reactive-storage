@@ -18,8 +18,9 @@ export interface RegistrationOptions<V> {
      *
      * *If given a number*, keys will be registered recursively up until
      * the given depth, assuming the default options. Can be {@link Infinity}.
-     * Since this is rather nonsensical without access to the present getters
-     * and setters, {@link deepSetter} or {@link deepGetter} can be used.
+     *
+     * To conveniently access deeply registered properties,
+     * {@link deepSetter} and {@link deepGetter} can be used.
      *
      * @example
      * ```ts
@@ -95,5 +96,7 @@ export declare class ReactiveStorage {
      * @param initialValue The initial value that will be assigned after registering.
      * @param options Options to configure registration properties, events, etc.
      */
-    registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): void;
+    registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): this;
+    static register<V extends any>(target: Data, key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): Record<ObjectKey, any> | Map<ObjectKey, any>;
+    static registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): void;
 }
