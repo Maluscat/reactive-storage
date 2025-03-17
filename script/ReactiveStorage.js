@@ -58,6 +58,14 @@ export class ReactiveStorage {
     }
     // ---- Static methods ----
     static register(target, key, initialValue, options = {}) {
+        return this.#register(target, key, initialValue, options);
+    }
+    static registerRecursive(key, initialValue, options = {}) {
+        options.depth = Infinity;
+        this.register(key, initialValue, options);
+    }
+    // ---- Static helpers ----
+    static #register(target, key, initialValue, options = {}, path = [key]) {
         let endpoint;
         if (options.endpoint) {
             if (options.endpoint instanceof ReactiveStorage) {
@@ -83,6 +91,12 @@ export class ReactiveStorage {
             else {
                 depthOptions = options.depth;
             }
+            // @ts-ignore
+            depthOptions.setter ??= options.setter;
+            // @ts-ignore
+            depthOptions.getter ??= options.getter;
+            // @ts-ignore
+            depthOptions.postSetter ??= options.postSetter;
             // NOTE: Did this have any special purpose?
             // depthOptions.endpoint = ReactiveStorage.#makeGetter(endpoint, key)();
         }
@@ -95,31 +109,26 @@ export class ReactiveStorage {
             configurable: true, // TODO decide?
             enumerable: options.enumerable ?? true,
             get: () => {
-                return (customGetter?.(getter()) ?? getter());
+                return (customGetter?.({ val: getter(), path }) ?? getter());
             },
             set: (val) => {
                 const prevVal = getter();
-                if (!customSetter?.(val, prevVal)) {
+                if (!customSetter?.({ val, prevVal, path })) {
                     setter(val);
                 }
                 if (depthOptions) {
                     const deepTarget = Array.isArray(val) ? [] : {};
                     for (const propKey in val) {
-                        this.register(deepTarget, propKey, val[propKey], depthOptions);
+                        this.#register(deepTarget, propKey, val[propKey], depthOptions, [...path, propKey]);
                     }
                     getter = () => deepTarget;
                 }
-                customPostSetter?.(val, prevVal);
+                customPostSetter?.({ val, prevVal, path });
             },
         });
         target[key] = initialValue;
         return endpoint;
     }
-    static registerRecursive(key, initialValue, options = {}) {
-        options.depth = Infinity;
-        this.register(key, initialValue, options);
-    }
-    // ---- Static helpers ----
     static #makeGetter(endpoint, key) {
         if (endpoint instanceof Map) {
             return () => endpoint.get(key);

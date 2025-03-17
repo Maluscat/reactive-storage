@@ -13,31 +13,28 @@ export interface RegistrationOptions<V> {
      * (both the given initial value and reassigned values) should be registered
      * such that they go through an additional layer of getters and setters.
      *
-     * *If given registration options*, the registered key configuration will
+     * If given *registration options*, the registered key configuration will
      * assume these options in their layer. Can be nested infinitely deep.
      *
-     * *If given a number*, keys will be registered recursively up until
+     * If given *a number*, keys will be registered recursively up until
      * the given depth, assuming the default options. Can be {@link Infinity}.
-     *
-     * To conveniently access deeply registered properties,
-     * {@link deepSetter} and {@link deepGetter} can be used.
      *
      * @example
      * ```ts
-     * const reaction = new ReactiveStorage();
-     * reaction.register('recursive', { first: { second: 3 } }, {
+     * const storage = new ReactiveStorage();
+     * storage.register('recursive', { first: { second: 3 } }, {
      *   setter: val => { console.log(`First layer: ${val}`) },
      *   deep: {
      *     setter: val => { console.log(`Second layer: ${val}`) },
-     *     deep: Infinity
+     *     depth: Infinity
      *   }
      * });
      *
-     * reaction.storage.recursive = { first2: { second2: 69 } };
+     * storage.data.recursive = { first2: { second2: 69 } };
      * // "First layer: { first2: { second2: 69 } }"
      * // "Second layer: { second2: 69 }"
      *
-     * reaction.storage.recursive.first2 = 70;
+     * storage.data.recursive.first2 = 70;
      * // "Second layer: 70"
      * ```
      *
@@ -47,18 +44,27 @@ export interface RegistrationOptions<V> {
     /**
      * The endpoint that the registered getters and setters point to.
      *
-     * *If given a {@link ReactiveStorage} object*, the given property is registered
+     * If given *a {@link ReactiveStorage} object*, the given property is registered
      * onto it via {@link ReactiveStorage.register}, if not already done, with the
      * default options. Register an endpoint's property yourself to control its options.
      *
      * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
      */
     endpoint: Endpoint;
-    deepSetter: (value: any, prevVal: any, depth: number, path: ObjectKey[]) => void | boolean;
-    deepGetter: (value: any, depth: number, path: ObjectKey[]) => any;
-    postSetter: (value: V, prevVal: V) => void;
-    setter: (value: V, prevVal: V) => void | boolean;
-    getter: (value: V) => V;
+    postSetter: (args: {
+        val: V;
+        prevVal: V;
+        path: ObjectKey[];
+    }) => void;
+    setter: (args: {
+        val: V;
+        prevVal: V;
+        path: ObjectKey[];
+    }) => void | boolean;
+    getter: (args: {
+        val: V;
+        path: ObjectKey[];
+    }) => V;
 }
 export declare class ReactiveStorageError extends Error {
     constructor(...args: any[]);
