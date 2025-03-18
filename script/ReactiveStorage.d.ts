@@ -77,10 +77,11 @@ export declare class ReactiveStorage {
      *
      * Values MUST NOT be overriden!
      */
-    readonly endpoint: Endpoint;
+    readonly endpoint: Exclude<Endpoint, ReactiveStorage>;
     readonly data: Data;
     constructor(data?: Data);
     has(key: ObjectKey): boolean;
+    delete(key: ObjectKey): boolean;
     /**
      * Register a reactive property on {@link data} that points to
      * the given endpoint or {@link endpoint} if unspecified.

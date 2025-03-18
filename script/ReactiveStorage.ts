@@ -73,7 +73,7 @@ export class ReactiveStorage {
    * 
    * Values MUST NOT be overriden!
    */
-  readonly endpoint: Endpoint = {};
+  readonly endpoint: Exclude<Endpoint, ReactiveStorage> = {};
   readonly data;
 
   constructor(data: Data = {}) {
@@ -83,14 +83,18 @@ export class ReactiveStorage {
   has(key: ObjectKey) {
     return Object.prototype.hasOwnProperty.call(this.data, key);
   }
-  // delete(key: ObjectKey) {
-  //   if (this.has(key)) {
-  //     this.endpoint.delete(key);
-
-  //     return true;
-  //   }
-  //   return false;
-  // }
+  delete(key: ObjectKey) {
+    if (this.has(key)) {
+      if (this.endpoint instanceof Map) {
+        this.endpoint.delete(key);
+      } else {
+        delete this.endpoint[key];
+      }
+      delete this.data[key];
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Register a reactive property on {@link data} that points to
