@@ -2,7 +2,8 @@ export type ObjectKey = number | string | symbol;
 export type Data = Record<ObjectKey, any> | Array<any>;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any> | ReactiveStorage;
 
-export interface RegistrationOptions<V> {
+export type RegistrationOptions<V> = Partial<RegistrationOptionsWhole<V>>
+export interface RegistrationOptionsWhole<V> {
   /**
    * Whether the value should be enumerable inside {@link ReactiveStorage.data}.
    * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -43,7 +44,7 @@ export interface RegistrationOptions<V> {
    *
    * @default 0
    */
-  depth: number | Partial<RegistrationOptions<any>>;
+  depth: number | RegistrationOptions<any>;
   /**
    * The endpoint that the registered getters and setters point to.
    *
@@ -102,7 +103,7 @@ export class ReactiveStorage {
    * @privateRemarks
    * TODO Better typing via generics?
    */
-  register<V extends any>(key: any, initialValue: V, options: Partial<RegistrationOptions<V>> = {}) {
+  register<V extends any>(key: any, initialValue: V, options: RegistrationOptions<V> = {}) {
     options.endpoint ??= this.endpoint;
     ReactiveStorage.register(this.data, key, initialValue, options);
 
@@ -119,9 +120,9 @@ export class ReactiveStorage {
    * @param initialValue The initial value that will be assigned after registering.
    * @param options Options to configure registration properties, events, etc.
    */
-  registerRecursive<V extends object>(key: any, initialValue: V, options: Partial<Omit<RegistrationOptions<V>, 'deep'>> = {}) {
-    this.#addInfiniteDepth(options);
-    this.register(key, initialValue, options as Partial<RegistrationOptions<V>>);
+  registerRecursive<V extends object>(key: any, initialValue: V, options: RegistrationOptions<V> = {}) {
+    ReactiveStorage.#addInfiniteDepth(options);
+    this.register(key, initialValue, options as RegistrationOptions<V>);
 
     return this;
   }
@@ -132,7 +133,7 @@ export class ReactiveStorage {
     target: Data,
     key: any,
     initialValue: V,
-    options: Partial<RegistrationOptions<V>> = {}
+    options: RegistrationOptions<V> = {}
   ) {
     return this.#register(target, key, initialValue, options);
   }
@@ -141,7 +142,7 @@ export class ReactiveStorage {
     target: Data,
     key: any,
     initialValue: V,
-    options: Partial<RegistrationOptions<V>> = {}
+    options: RegistrationOptions<V> = {}
   ) {
     this.#addInfiniteDepth(options);
     return this.register(target, key, initialValue, options);
@@ -153,7 +154,7 @@ export class ReactiveStorage {
     target: Data,
     key: any,
     initialValue: V,
-    options: Partial<RegistrationOptions<V>> = {},
+    options: RegistrationOptions<V> = {},
     path: ObjectKey[] = [key]
   ) {
     let endpoint: Exclude<Endpoint, ReactiveStorage>;
@@ -167,7 +168,7 @@ export class ReactiveStorage {
     } else endpoint = {};
 
     // TODO: Limit (infinite) recursion to object literals and arrays instead of any object!
-    let depthOptions: undefined | Partial<RegistrationOptions<V[keyof V]>>;
+    let depthOptions: undefined | RegistrationOptions<V[keyof V]>;
     if (options.depth && typeof initialValue === 'object') {
       if (typeof options.depth !== 'object') {
         depthOptions = {};
@@ -201,7 +202,7 @@ export class ReactiveStorage {
       },
       set: (val: V) => {
         const prevVal = getter();
-        if (!customSetter?.({ val, prevVal, path })) {
+        if (!customSetter?.(val, { prevVal, path })) {
           setter(val);
         }
         if (depthOptions) {
@@ -211,7 +212,7 @@ export class ReactiveStorage {
           }
           getter = () => deepTarget;
         }
-        customPostSetter?.({ val, prevVal, path });
+        customPostSetter?.(val, { prevVal, path });
       },
     });
 
@@ -235,10 +236,10 @@ export class ReactiveStorage {
     }
   }
 
-  static #addInfiniteDepth(options: Partial<RegistrationOptions<any>>) {
+  static #addInfiniteDepth(options: RegistrationOptions<any>) {
     let deepOptions = options;
     while (deepOptions.depth != null && typeof options.depth === 'object' && deepOptions !== deepOptions.depth) {
-      deepOptions = deepOptions.depth as Partial<RegistrationOptions<any>>;
+      deepOptions = deepOptions.depth as RegistrationOptions<any>;
     }
     deepOptions.depth = Infinity;
   }

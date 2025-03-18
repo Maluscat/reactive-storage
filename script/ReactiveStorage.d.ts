@@ -1,7 +1,8 @@
 export type ObjectKey = number | string | symbol;
 export type Data = Record<ObjectKey, any> | Array<any>;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any> | ReactiveStorage;
-export interface RegistrationOptions<V> {
+export type RegistrationOptions<V> = Partial<RegistrationOptionsWhole<V>>;
+export interface RegistrationOptionsWhole<V> {
     /**
      * Whether the value should be enumerable inside {@link ReactiveStorage.data}.
      * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -42,7 +43,7 @@ export interface RegistrationOptions<V> {
      *
      * @default 0
      */
-    depth: number | Partial<RegistrationOptions<any>>;
+    depth: number | RegistrationOptions<any>;
     /**
      * The endpoint that the registered getters and setters point to.
      *
@@ -91,7 +92,7 @@ export declare class ReactiveStorage {
      * @privateRemarks
      * TODO Better typing via generics?
      */
-    register<V extends any>(key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): this;
+    register<V extends any>(key: any, initialValue: V, options?: RegistrationOptions<V>): this;
     /**
      * Register a reactive property on {@link data} *recursively* by traversing
      * its initial value and registering any found arrays and object literals.
@@ -102,7 +103,7 @@ export declare class ReactiveStorage {
      * @param initialValue The initial value that will be assigned after registering.
      * @param options Options to configure registration properties, events, etc.
      */
-    registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): this;
-    static register<V extends any>(target: Data, key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): Record<ObjectKey, any> | Map<ObjectKey, any>;
-    static registerRecursive<V extends any>(target: Data, key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): Record<ObjectKey, any> | Map<ObjectKey, any>;
+    registerRecursive<V extends object>(key: any, initialValue: V, options?: RegistrationOptions<V>): this;
+    static register<V extends any>(target: Data, key: any, initialValue: V, options?: RegistrationOptions<V>): Record<ObjectKey, any> | Map<ObjectKey, any>;
+    static registerRecursive<V extends any>(target: Data, key: any, initialValue: V, options?: RegistrationOptions<V>): Record<ObjectKey, any> | Map<ObjectKey, any>;
 }

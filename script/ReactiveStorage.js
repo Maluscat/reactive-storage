@@ -52,7 +52,7 @@ export class ReactiveStorage {
      * @param options Options to configure registration properties, events, etc.
      */
     registerRecursive(key, initialValue, options = {}) {
-        this.#addInfiniteDepth(options);
+        ReactiveStorage.#addInfiniteDepth(options);
         this.register(key, initialValue, options);
         return this;
     }
@@ -113,7 +113,7 @@ export class ReactiveStorage {
             },
             set: (val) => {
                 const prevVal = getter();
-                if (!customSetter?.({ val, prevVal, path })) {
+                if (!customSetter?.(val, { prevVal, path })) {
                     setter(val);
                 }
                 if (depthOptions) {
@@ -123,7 +123,7 @@ export class ReactiveStorage {
                     }
                     getter = () => deepTarget;
                 }
-                customPostSetter?.({ val, prevVal, path });
+                customPostSetter?.(val, { prevVal, path });
             },
         });
         target[key] = initialValue;
