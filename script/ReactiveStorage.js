@@ -48,6 +48,9 @@ export class ReactiveStorage {
      * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     register(key, initialValue, options = {}) {
+        if (typeof key !== 'string' && typeof key !== 'number' && typeof key !== 'symbol') {
+            throw new ReactiveStorageError(`The first argument must be a valid object key (string, number or symbol).`);
+        }
         options.endpoint ??= this.endpoint;
         ReactiveStorage.register(this.data, key, initialValue, options);
         return this;
@@ -66,6 +69,9 @@ export class ReactiveStorage {
      * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     registerRecursive(key, initialValue, options = {}) {
+        if (typeof key !== 'string' && typeof key !== 'number' && typeof key !== 'symbol') {
+            throw new ReactiveStorageError(`The first argument must be a valid object key (string, number or symbol).`);
+        }
         ReactiveStorage.#addInfiniteDepth(options);
         this.register(key, initialValue, options);
         return this;
@@ -82,6 +88,9 @@ export class ReactiveStorage {
      * @return The endpoint the registered property points to.
      */
     static register(target, key, initialValue, options = {}) {
+        if (typeof target !== 'object') {
+            throw new ReactiveStorageError(`The first argument must be a data object or array.`);
+        }
         return this.#register(target, key, initialValue, options);
     }
     /**
@@ -98,6 +107,9 @@ export class ReactiveStorage {
      * @return The endpoint the registered property points to.
      */
     static registerRecursive(target, key, initialValue, options = {}) {
+        if (typeof target !== 'object') {
+            throw new ReactiveStorageError(`The first argument must be a data object or array.`);
+        }
         this.#addInfiniteDepth(options);
         return this.register(target, key, initialValue, options);
     }
