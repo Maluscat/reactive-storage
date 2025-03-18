@@ -78,33 +78,63 @@ export declare class ReactiveStorage {
      * Values should not be overridden.
      */
     readonly endpoint: Endpoint;
+    /**
+     * Access point for registered properties.
+     * Can be customized in the constructor.
+     */
     readonly data: Data;
     constructor(data?: Data);
+    /** Check for existence of a registered property on {@link data}. */
     has(key: ObjectKey): boolean;
+    /** Delete {@link data} and {@link endpoint} entry of a registered property. */
     delete(key: ObjectKey): boolean;
     /**
      * Register a reactive property on {@link data} that points to
      * the given endpoint or {@link endpoint} if unspecified.
      *
-     * @param key The property key to register on {@link data}.
+     * @param key The property name to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
-     * @param options Options to configure registration properties, events, etc.
      *
-     * @privateRemarks
-     * TODO Better typing via generics?
+     * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     register(key: ObjectKey, initialValue: any, options?: RegistrationOptions): this;
     /**
-     * Register a reactive property on {@link data} *recursively* by traversing
-     * its initial value and registering any found arrays and object literals.
+     * Register a reactive property on {@link data} recursively deep
+     * by traversing its initial value and registering all properties
+     * within any found array or object literal.
      *
-     * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
+     * Shorthand for {@link ReactiveStorage#register} with the deepest
+     * {@link RegistrationOptions.depth} set to `Infinity`.
      *
-     * @param key The property key to register on {@link data}.
+     * @param key The property name to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
-     * @param options Options to configure registration properties, events, etc.
+     *
+     * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     registerRecursive(key: ObjectKey, initialValue: any, options?: RegistrationOptions): this;
+    /**
+     * Register a reactive property on the given data that points to
+     * the given endpoint or a new object if unspecified.
+     *
+     * @param data The object or array to register the property on.
+     * @param key The property name to register.
+     * @param initialValue The initial value that will be assigned after registering.
+     *
+     * @return The endpoint the registered property points to.
+     */
     static register<K extends ObjectKey, V extends any>(target: V[] | Record<K, V>, key: K, initialValue: V, options?: RegistrationOptions): Endpoint;
+    /**
+     * Register a reactive property on the given data that points to
+     * the given endpoint or a new object if unspecified.
+     *
+     * Shorthand for {@link register} with the deepest
+     * {@link RegistrationOptions.depth} set to `Infinity`.
+     *
+     * @param data The object or array to register the property on.
+     * @param key The property name to register.
+     * @param initialValue The initial value that will be assigned after registering.
+     *
+     * @return The endpoint the registered property points to.
+     */
     static registerRecursive<K extends ObjectKey, V extends any>(target: V[] | Record<K, V>, key: K, initialValue: V, options?: RegistrationOptions): Endpoint;
 }

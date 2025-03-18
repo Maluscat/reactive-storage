@@ -11,13 +11,19 @@ export class ReactiveStorage {
      * Values should not be overridden.
      */
     endpoint = {};
+    /**
+     * Access point for registered properties.
+     * Can be customized in the constructor.
+     */
     data;
     constructor(data = {}) {
         this.data = data;
     }
+    /** Check for existence of a registered property on {@link data}. */
     has(key) {
         return Object.prototype.hasOwnProperty.call(this.data, key);
     }
+    /** Delete {@link data} and {@link endpoint} entry of a registered property. */
     delete(key) {
         if (this.has(key)) {
             if (this.endpoint instanceof Map) {
@@ -36,12 +42,10 @@ export class ReactiveStorage {
      * Register a reactive property on {@link data} that points to
      * the given endpoint or {@link endpoint} if unspecified.
      *
-     * @param key The property key to register on {@link data}.
+     * @param key The property name to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
-     * @param options Options to configure registration properties, events, etc.
      *
-     * @privateRemarks
-     * TODO Better typing via generics?
+     * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     register(key, initialValue, options = {}) {
         options.endpoint ??= this.endpoint;
@@ -49,14 +53,17 @@ export class ReactiveStorage {
         return this;
     }
     /**
-     * Register a reactive property on {@link data} *recursively* by traversing
-     * its initial value and registering any found arrays and object literals.
+     * Register a reactive property on {@link data} recursively deep
+     * by traversing its initial value and registering all properties
+     * within any found array or object literal.
      *
-     * Shorthand for {@link register} with {@link RegistrationOptions.depth} set to `Infinity`.
+     * Shorthand for {@link ReactiveStorage#register} with the deepest
+     * {@link RegistrationOptions.depth} set to `Infinity`.
      *
-     * @param key The property key to register on {@link data}.
+     * @param key The property name to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
-     * @param options Options to configure registration properties, events, etc.
+     *
+     * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     registerRecursive(key, initialValue, options = {}) {
         ReactiveStorage.#addInfiniteDepth(options);
@@ -64,9 +71,32 @@ export class ReactiveStorage {
         return this;
     }
     // ---- Static methods ----
+    /**
+     * Register a reactive property on the given data that points to
+     * the given endpoint or a new object if unspecified.
+     *
+     * @param data The object or array to register the property on.
+     * @param key The property name to register.
+     * @param initialValue The initial value that will be assigned after registering.
+     *
+     * @return The endpoint the registered property points to.
+     */
     static register(target, key, initialValue, options = {}) {
         return this.#register(target, key, initialValue, options);
     }
+    /**
+     * Register a reactive property on the given data that points to
+     * the given endpoint or a new object if unspecified.
+     *
+     * Shorthand for {@link register} with the deepest
+     * {@link RegistrationOptions.depth} set to `Infinity`.
+     *
+     * @param data The object or array to register the property on.
+     * @param key The property name to register.
+     * @param initialValue The initial value that will be assigned after registering.
+     *
+     * @return The endpoint the registered property points to.
+     */
     static registerRecursive(target, key, initialValue, options = {}) {
         this.#addInfiniteDepth(options);
         return this.register(target, key, initialValue, options);
@@ -149,6 +179,10 @@ export class ReactiveStorage {
         target[key] = initialValue;
         return endpoint;
     }
+    /**
+     * Return a function that gets the given key from the given endpoint.
+     * @internal
+     */
     static #makeGetter(endpoint, key) {
         if (endpoint instanceof Map) {
             return () => endpoint.get(key);
@@ -157,6 +191,11 @@ export class ReactiveStorage {
             return () => endpoint[key];
         }
     }
+    /**
+     * Return a function that sets a value at the given endpoint
+     * keyed by the given key.
+     * @internal
+     */
     static #makeSetter(endpoint, key) {
         if (endpoint instanceof Map) {
             return (val) => endpoint.set(key, val);
@@ -165,6 +204,11 @@ export class ReactiveStorage {
             return (val) => endpoint[key] = val;
         }
     }
+    /**
+     * Add a depth of {@link Infinity} at the deepest possible depth
+     * configuration of {@link RegistrationOptions}.
+     * @internal
+     */
     static #addInfiniteDepth(options) {
         let deepOptions = options;
         while (deepOptions.depth != null && typeof options.depth === 'object' && deepOptions !== deepOptions.depth) {
