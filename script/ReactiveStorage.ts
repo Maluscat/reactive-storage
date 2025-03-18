@@ -167,9 +167,16 @@ export class ReactiveStorage {
       } else endpoint = options.endpoint;
     } else endpoint = {};
 
+    let getter = ReactiveStorage.#makeGetter(endpoint, key);
+    let setter = ReactiveStorage.#makeSetter(endpoint, key);
+    let hasCustomDepthEndpoint = false;
+    const customGetter = options.getter;
+    const customSetter = options.setter;
+    const customPostSetter = options.postSetter;
+
     // TODO: Limit (infinite) recursion to object literals and arrays instead of any object!
     let depthOptions: undefined | RegistrationOptions<V[keyof V]>;
-    if (options.depth && typeof initialValue === 'object') {
+    if (options.depth) {
       if (typeof options.depth !== 'object') {
         depthOptions = {};
         if (typeof options.depth === 'number') {
@@ -178,21 +185,18 @@ export class ReactiveStorage {
       } else {
         depthOptions = options.depth;
       }
+      hasCustomDepthEndpoint = !!depthOptions.depth;
       // @ts-ignore
       depthOptions.setter ??= options.setter;
       // @ts-ignore
       depthOptions.getter ??= options.getter;
       // @ts-ignore
       depthOptions.postSetter ??= options.postSetter;
-      // NOTE: Did this have any special purpose?
-      // depthOptions.endpoint = ReactiveStorage.#makeGetter(endpoint, key)();
+      depthOptions.enumerable ??= options.enumerable;
     }
 
-    let getter = ReactiveStorage.#makeGetter(endpoint, key);
-    let setter = ReactiveStorage.#makeSetter(endpoint, key);
-    const customGetter = options.getter;
-    const customSetter = options.setter;
-    const customPostSetter = options.postSetter;
+    // Populate endpoint
+    setter(initialValue);
 
     Object.defineProperty(target, key, {
       configurable: true, // TODO decide?
@@ -205,7 +209,16 @@ export class ReactiveStorage {
         if (!customSetter?.(val, { prevVal, path })) {
           setter(val);
         }
-        if (depthOptions) {
+        if (depthOptions && typeof val === 'object') {
+          if (!hasCustomDepthEndpoint) {
+            // Instead of creating a new endpoint for every depth, use the objects
+            // from the existing endpoint hierarchy. For example for `foo: { bar: 1 }`
+            // SET foo -> endpoint `foo: { bar: 1 }`
+            // SET bar -> endpoint `bar: 1` (same object { bar: 1 } within the endpoint above)
+            depthOptions.endpoint = getter();
+          }
+          // We don't need to save the deep target anywhere
+          // because it is exposed via the updated getter below
           const deepTarget = Array.isArray(val) ? [] : {};
           for (const propKey in val) {
             this.#register(deepTarget, propKey, val[propKey], depthOptions, [ ...path, propKey ]);
