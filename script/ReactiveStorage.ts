@@ -1,9 +1,9 @@
 export type ObjectKey = number | string | symbol;
 export type Data = Record<ObjectKey, any> | Array<any>;
-export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any> | ReactiveStorage;
+export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
 
-export type RegistrationOptions<V> = Partial<RegistrationOptionsWhole<V>>
-export interface RegistrationOptionsWhole<V> {
+export type RegistrationOptions = Partial<RegistrationOptionsWhole>
+export interface RegistrationOptionsWhole {
   /**
    * Whether the value should be enumerable inside {@link ReactiveStorage.data}.
    * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -44,7 +44,7 @@ export interface RegistrationOptionsWhole<V> {
    *
    * @default 0
    */
-  depth: number | RegistrationOptions<any>;
+  depth: number | RegistrationOptions;
   /**
    * The endpoint that the registered getters and setters point to.
    *
@@ -54,10 +54,10 @@ export interface RegistrationOptionsWhole<V> {
    *
    * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
    */
-  endpoint: Endpoint;
-  postSetter: (val: V, info: { prevVal: V, path: ObjectKey[] }) => void;
-  setter: (val: V, info: { prevVal: V, path: ObjectKey[] }) => void | boolean;
-  getter: (args: { val: V, path: ObjectKey[] }) => V;
+  endpoint: Endpoint | ReactiveStorage;
+  postSetter: (val: any, info: { prevVal: any, path: ObjectKey[] }) => void;
+  setter: (val: any, info: { prevVal: any, path: ObjectKey[] }) => void | boolean;
+  getter: (args: { val: any, path: ObjectKey[] }) => any;
 }
 
 export class ReactiveStorageError extends Error {
@@ -69,11 +69,11 @@ export class ReactiveStorageError extends Error {
 
 export class ReactiveStorage {
   /**
-   * Endpoint holding the definitive values of the registered properties.
+   * Endpoint holding the actual values of the registered properties.
    * 
-   * Values MUST NOT be overriden!
+   * Values should not be overridden.
    */
-  readonly endpoint: Exclude<Endpoint, ReactiveStorage> = {};
+  readonly endpoint: Endpoint = {};
   readonly data;
 
   constructor(data: Data = {}) {
@@ -90,6 +90,7 @@ export class ReactiveStorage {
       } else {
         delete this.endpoint[key];
       }
+      // @ts-ignore Checked for property existence above
       delete this.data[key];
       return true;
     }
@@ -107,7 +108,7 @@ export class ReactiveStorage {
    * @privateRemarks
    * TODO Better typing via generics?
    */
-  register<V extends any>(key: any, initialValue: V, options: RegistrationOptions<V> = {}) {
+  register(key: ObjectKey, initialValue: any, options: RegistrationOptions = {}) {
     options.endpoint ??= this.endpoint;
     ReactiveStorage.register(this.data, key, initialValue, options);
 
@@ -124,29 +125,29 @@ export class ReactiveStorage {
    * @param initialValue The initial value that will be assigned after registering.
    * @param options Options to configure registration properties, events, etc.
    */
-  registerRecursive<V extends object>(key: any, initialValue: V, options: RegistrationOptions<V> = {}) {
+  registerRecursive(key: ObjectKey, initialValue: any, options: RegistrationOptions = {}) {
     ReactiveStorage.#addInfiniteDepth(options);
-    this.register(key, initialValue, options as RegistrationOptions<V>);
+    this.register(key, initialValue, options as RegistrationOptions);
 
     return this;
   }
 
 
   // ---- Static methods ----
-  static register<V extends any>(
-    target: Data,
-    key: any,
+  static register<K extends ObjectKey, V extends any>(
+    target: V[] | Record<K, V>,
+    key: K,
     initialValue: V,
-    options: RegistrationOptions<V> = {}
+    options: RegistrationOptions = {}
   ) {
     return this.#register(target, key, initialValue, options);
   }
 
-  static registerRecursive<V extends any>(
-    target: Data,
-    key: any,
+  static registerRecursive<K extends ObjectKey, V extends any>(
+    target: V[] | Record<K, V>,
+    key: K,
     initialValue: V,
-    options: RegistrationOptions<V> = {}
+    options: RegistrationOptions = {}
   ) {
     this.#addInfiniteDepth(options);
     return this.register(target, key, initialValue, options);
@@ -154,14 +155,14 @@ export class ReactiveStorage {
 
 
   // ---- Static helpers ----
-  static #register<V extends any>(
-    target: Data,
-    key: any,
+  static #register<K extends ObjectKey, V extends any>(
+    target: V[] | Record<K, V>,
+    key: K,
     initialValue: V,
-    options: RegistrationOptions<V> = {},
+    options: RegistrationOptions = {},
     path: ObjectKey[] = [key]
   ) {
-    let endpoint: Exclude<Endpoint, ReactiveStorage>;
+    let endpoint: Endpoint;
     if (options.endpoint) {
       if (options.endpoint instanceof ReactiveStorage) {
         endpoint = options.endpoint.data; 
@@ -179,7 +180,7 @@ export class ReactiveStorage {
     const customPostSetter = options.postSetter;
 
     // TODO: Limit (infinite) recursion to object literals and arrays instead of any object!
-    let depthOptions: undefined | RegistrationOptions<V[keyof V]>;
+    let depthOptions: undefined | RegistrationOptions;
     if (options.depth) {
       if (typeof options.depth !== 'object') {
         depthOptions = {};
@@ -208,7 +209,7 @@ export class ReactiveStorage {
       get: () => {
         return (customGetter?.({ val: getter(), path }) ?? getter()) as V;
       },
-      set: (val: V) => {
+      set: (val: any) => {
         const prevVal = getter();
         if (!customSetter?.(val, { prevVal, path })) {
           setter(val);
@@ -233,19 +234,20 @@ export class ReactiveStorage {
       },
     });
 
+    // @ts-ignore ???
     target[key] = initialValue;
 
     return endpoint;
   }
 
-  static #makeGetter(endpoint: Exclude<Endpoint, ReactiveStorage>, key: ObjectKey): () => any {
+  static #makeGetter(endpoint: Endpoint, key: ObjectKey): () => any {
     if (endpoint instanceof Map) {
       return () => endpoint.get(key);
     } else {
       return () => endpoint[key];
     }
   }
-  static #makeSetter(endpoint: Exclude<Endpoint, ReactiveStorage>, key: ObjectKey): (val: any) => void {
+  static #makeSetter(endpoint: Endpoint, key: ObjectKey): (val: any) => void {
     if (endpoint instanceof Map) {
       return (val: any) => endpoint.set(key, val);
     } else {
@@ -253,10 +255,10 @@ export class ReactiveStorage {
     }
   }
 
-  static #addInfiniteDepth(options: RegistrationOptions<any>) {
+  static #addInfiniteDepth(options: RegistrationOptions) {
     let deepOptions = options;
     while (deepOptions.depth != null && typeof options.depth === 'object' && deepOptions !== deepOptions.depth) {
-      deepOptions = deepOptions.depth as RegistrationOptions<any>;
+      deepOptions = deepOptions.depth as RegistrationOptions;
     }
     deepOptions.depth = Infinity;
   }

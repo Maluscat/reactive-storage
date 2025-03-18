@@ -6,9 +6,9 @@ export class ReactiveStorageError extends Error {
 }
 export class ReactiveStorage {
     /**
-     * Endpoint holding the definitive values of the registered properties.
+     * Endpoint holding the actual values of the registered properties.
      *
-     * Values MUST NOT be overriden!
+     * Values should not be overridden.
      */
     endpoint = {};
     data;
@@ -26,6 +26,7 @@ export class ReactiveStorage {
             else {
                 delete this.endpoint[key];
             }
+            // @ts-ignore Checked for property existence above
             delete this.data[key];
             return true;
         }
@@ -144,6 +145,7 @@ export class ReactiveStorage {
                 customPostSetter?.(val, { prevVal, path });
             },
         });
+        // @ts-ignore ???
         target[key] = initialValue;
         return endpoint;
     }

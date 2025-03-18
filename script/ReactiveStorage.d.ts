@@ -1,8 +1,8 @@
 export type ObjectKey = number | string | symbol;
 export type Data = Record<ObjectKey, any> | Array<any>;
-export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any> | ReactiveStorage;
-export type RegistrationOptions<V> = Partial<RegistrationOptionsWhole<V>>;
-export interface RegistrationOptionsWhole<V> {
+export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
+export type RegistrationOptions = Partial<RegistrationOptionsWhole>;
+export interface RegistrationOptionsWhole {
     /**
      * Whether the value should be enumerable inside {@link ReactiveStorage.data}.
      * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -43,7 +43,7 @@ export interface RegistrationOptionsWhole<V> {
      *
      * @default 0
      */
-    depth: number | RegistrationOptions<any>;
+    depth: number | RegistrationOptions;
     /**
      * The endpoint that the registered getters and setters point to.
      *
@@ -53,19 +53,19 @@ export interface RegistrationOptionsWhole<V> {
      *
      * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
      */
-    endpoint: Endpoint;
-    postSetter: (val: V, info: {
-        prevVal: V;
+    endpoint: Endpoint | ReactiveStorage;
+    postSetter: (val: any, info: {
+        prevVal: any;
         path: ObjectKey[];
     }) => void;
-    setter: (val: V, info: {
-        prevVal: V;
+    setter: (val: any, info: {
+        prevVal: any;
         path: ObjectKey[];
     }) => void | boolean;
     getter: (args: {
-        val: V;
+        val: any;
         path: ObjectKey[];
-    }) => V;
+    }) => any;
 }
 export declare class ReactiveStorageError extends Error {
     constructor(...args: any[]);
@@ -73,11 +73,11 @@ export declare class ReactiveStorageError extends Error {
 export declare class ReactiveStorage {
     #private;
     /**
-     * Endpoint holding the definitive values of the registered properties.
+     * Endpoint holding the actual values of the registered properties.
      *
-     * Values MUST NOT be overriden!
+     * Values should not be overridden.
      */
-    readonly endpoint: Exclude<Endpoint, ReactiveStorage>;
+    readonly endpoint: Endpoint;
     readonly data: Data;
     constructor(data?: Data);
     has(key: ObjectKey): boolean;
@@ -93,7 +93,7 @@ export declare class ReactiveStorage {
      * @privateRemarks
      * TODO Better typing via generics?
      */
-    register<V extends any>(key: any, initialValue: V, options?: RegistrationOptions<V>): this;
+    register(key: ObjectKey, initialValue: any, options?: RegistrationOptions): this;
     /**
      * Register a reactive property on {@link data} *recursively* by traversing
      * its initial value and registering any found arrays and object literals.
@@ -104,7 +104,7 @@ export declare class ReactiveStorage {
      * @param initialValue The initial value that will be assigned after registering.
      * @param options Options to configure registration properties, events, etc.
      */
-    registerRecursive<V extends object>(key: any, initialValue: V, options?: RegistrationOptions<V>): this;
-    static register<V extends any>(target: Data, key: any, initialValue: V, options?: RegistrationOptions<V>): Record<ObjectKey, any> | Map<ObjectKey, any>;
-    static registerRecursive<V extends any>(target: Data, key: any, initialValue: V, options?: RegistrationOptions<V>): Record<ObjectKey, any> | Map<ObjectKey, any>;
+    registerRecursive(key: ObjectKey, initialValue: any, options?: RegistrationOptions): this;
+    static register<K extends ObjectKey, V extends any>(target: V[] | Record<K, V>, key: K, initialValue: V, options?: RegistrationOptions): Endpoint;
+    static registerRecursive<K extends ObjectKey, V extends any>(target: V[] | Record<K, V>, key: K, initialValue: V, options?: RegistrationOptions): Endpoint;
 }
