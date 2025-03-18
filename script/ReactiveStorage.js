@@ -52,7 +52,7 @@ export class ReactiveStorage {
      * @param options Options to configure registration properties, events, etc.
      */
     registerRecursive(key, initialValue, options = {}) {
-        options.depth = Infinity;
+        this.#addInfiniteDepth(options);
         this.register(key, initialValue, options);
         return this;
     }
@@ -60,9 +60,9 @@ export class ReactiveStorage {
     static register(target, key, initialValue, options = {}) {
         return this.#register(target, key, initialValue, options);
     }
-    static registerRecursive(key, initialValue, options = {}) {
-        options.depth = Infinity;
-        this.register(key, initialValue, options);
+    static registerRecursive(target, key, initialValue, options = {}) {
+        this.#addInfiniteDepth(options);
+        return this.register(target, key, initialValue, options);
     }
     // ---- Static helpers ----
     static #register(target, key, initialValue, options = {}, path = [key]) {
@@ -144,5 +144,12 @@ export class ReactiveStorage {
         else {
             return (val) => endpoint[key] = val;
         }
+    }
+    static #addInfiniteDepth(options) {
+        let deepOptions = options;
+        while (deepOptions.depth != null && typeof options.depth === 'object' && deepOptions !== deepOptions.depth) {
+            deepOptions = deepOptions.depth;
+        }
+        deepOptions.depth = Infinity;
     }
 }

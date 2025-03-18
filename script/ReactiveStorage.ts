@@ -18,30 +18,32 @@ export interface RegistrationOptions<V> {
    * assume these options in their layer. Can be nested infinitely deep.
    *
    * If given *a number*, keys will be registered recursively up until
-   * the given depth, assuming the default options. Can be {@link Infinity}.
+   * the given depth, assuming the options present in the given scope.
+   * Can be {@link Infinity}.
    * 
    * @example
    * ```ts
    * const storage = new ReactiveStorage();
    * storage.register('recursive', { first: { second: 3 } }, {
-   *   setter: val => { console.log(`First layer: ${val}`) },
-   *   deep: {
-   *     setter: val => { console.log(`Second layer: ${val}`) },
+   *   setter: val => { console.log("First layer:", val) },
+   *   depth: {
+   *     setter: val => { console.log("Further layer:", val) },
    *     depth: Infinity
    *   }
    * });
    *
    * storage.data.recursive = { first2: { second2: 69 } };
    * // "First layer: { first2: { second2: 69 } }"
-   * // "Second layer: { second2: 69 }"
+   * // "Further layer: { second2: 69 }"
+   * // "Further layer: 69"
    *
    * storage.data.recursive.first2 = 70;
-   * // "Second layer: 70"
+   * // "Further layer: 70"
    * ```
    *
    * @default 0
    */
-  depth: number | RegistrationOptions<any>;
+  depth: number | Partial<RegistrationOptions<any>>;
   /**
    * The endpoint that the registered getters and setters point to.
    *
@@ -52,8 +54,8 @@ export interface RegistrationOptions<V> {
    * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
    */
   endpoint: Endpoint;
-  postSetter: (args: { val: V, prevVal: V, path: ObjectKey[] }) => void;
-  setter: (args: { val: V, prevVal: V, path: ObjectKey[] }) => void | boolean;
+  postSetter: (val: V, info: { prevVal: V, path: ObjectKey[] }) => void;
+  setter: (val: V, info: { prevVal: V, path: ObjectKey[] }) => void | boolean;
   getter: (args: { val: V, path: ObjectKey[] }) => V;
 }
 
@@ -118,7 +120,7 @@ export class ReactiveStorage {
    * @param options Options to configure registration properties, events, etc.
    */
   registerRecursive<V extends object>(key: any, initialValue: V, options: Partial<Omit<RegistrationOptions<V>, 'deep'>> = {}) {
-    (options as Partial<RegistrationOptions<V>>).depth = Infinity;
+    this.#addInfiniteDepth(options);
     this.register(key, initialValue, options as Partial<RegistrationOptions<V>>);
 
     return this;
@@ -135,9 +137,14 @@ export class ReactiveStorage {
     return this.#register(target, key, initialValue, options);
   }
 
-  static registerRecursive<V extends object>(key: any, initialValue: V, options: Partial<Omit<RegistrationOptions<V>, 'deep'>> = {}) {
-    (options as Partial<RegistrationOptions<V>>).depth = Infinity;
-    this.register(key, initialValue, options as Partial<RegistrationOptions<V>>);
+  static registerRecursive<V extends any>(
+    target: Data,
+    key: any,
+    initialValue: V,
+    options: Partial<RegistrationOptions<V>> = {}
+  ) {
+    this.#addInfiniteDepth(options);
+    return this.register(target, key, initialValue, options);
   }
 
 
@@ -226,5 +233,13 @@ export class ReactiveStorage {
     } else {
       return (val: any) => endpoint[key] = val;
     }
+  }
+
+  static #addInfiniteDepth(options: Partial<RegistrationOptions<any>>) {
+    let deepOptions = options;
+    while (deepOptions.depth != null && typeof options.depth === 'object' && deepOptions !== deepOptions.depth) {
+      deepOptions = deepOptions.depth as Partial<RegistrationOptions<any>>;
+    }
+    deepOptions.depth = Infinity;
   }
 }

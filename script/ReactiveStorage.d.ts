@@ -17,30 +17,32 @@ export interface RegistrationOptions<V> {
      * assume these options in their layer. Can be nested infinitely deep.
      *
      * If given *a number*, keys will be registered recursively up until
-     * the given depth, assuming the default options. Can be {@link Infinity}.
+     * the given depth, assuming the options present in the given scope.
+     * Can be {@link Infinity}.
      *
      * @example
      * ```ts
      * const storage = new ReactiveStorage();
      * storage.register('recursive', { first: { second: 3 } }, {
-     *   setter: val => { console.log(`First layer: ${val}`) },
-     *   deep: {
-     *     setter: val => { console.log(`Second layer: ${val}`) },
+     *   setter: val => { console.log("First layer:", val) },
+     *   depth: {
+     *     setter: val => { console.log("Further layer:", val) },
      *     depth: Infinity
      *   }
      * });
      *
      * storage.data.recursive = { first2: { second2: 69 } };
      * // "First layer: { first2: { second2: 69 } }"
-     * // "Second layer: { second2: 69 }"
+     * // "Further layer: { second2: 69 }"
+     * // "Further layer: 69"
      *
      * storage.data.recursive.first2 = 70;
-     * // "Second layer: 70"
+     * // "Further layer: 70"
      * ```
      *
      * @default 0
      */
-    depth: number | RegistrationOptions<any>;
+    depth: number | Partial<RegistrationOptions<any>>;
     /**
      * The endpoint that the registered getters and setters point to.
      *
@@ -51,13 +53,11 @@ export interface RegistrationOptions<V> {
      * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
      */
     endpoint: Endpoint;
-    postSetter: (args: {
-        val: V;
+    postSetter: (val: V, info: {
         prevVal: V;
         path: ObjectKey[];
     }) => void;
-    setter: (args: {
-        val: V;
+    setter: (val: V, info: {
         prevVal: V;
         path: ObjectKey[];
     }) => void | boolean;
@@ -104,5 +104,5 @@ export declare class ReactiveStorage {
      */
     registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): this;
     static register<V extends any>(target: Data, key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): Record<ObjectKey, any> | Map<ObjectKey, any>;
-    static registerRecursive<V extends object>(key: any, initialValue: V, options?: Partial<Omit<RegistrationOptions<V>, 'deep'>>): void;
+    static registerRecursive<V extends any>(target: Data, key: any, initialValue: V, options?: Partial<RegistrationOptions<V>>): Record<ObjectKey, any> | Map<ObjectKey, any>;
 }
