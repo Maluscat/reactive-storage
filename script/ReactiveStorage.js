@@ -10,14 +10,21 @@ export class ReactiveStorage {
      *
      * Values should not be overridden.
      */
-    endpoint = {};
+    endpoint;
     /**
      * Access point for registered properties.
      * Can be customized in the constructor.
      */
     data;
-    constructor(data = {}) {
-        this.data = data;
+    /**
+     * @param data The {@link ReactiveStorage.data} object that represents
+     *             the access point for the registered properties.
+     * @param endpoint The {@link ReactiveStorage.endpoint} that holds the
+     *                 actual registered data.
+     */
+    constructor(data = {}, endpoint = {}) {
+        this.data = data || {};
+        this.endpoint = endpoint || {};
     }
     /** Check for existence of a registered property on {@link data}. */
     has(key) {
@@ -52,7 +59,7 @@ export class ReactiveStorage {
             throw new ReactiveStorageError(`The first argument must be a valid object key (string, number or symbol).`);
         }
         options.endpoint ??= this.endpoint;
-        ReactiveStorage.register(this.data, key, initialValue, options);
+        ReactiveStorage.#register(this.data, key, initialValue, options);
         return this;
     }
     /**
@@ -161,11 +168,11 @@ export class ReactiveStorage {
             configurable: true, // TODO decide?
             enumerable: options.enumerable ?? true,
             get: () => {
-                return (customGetter?.({ val: getter(), path }) ?? getter());
+                return customGetter?.({ val: getter(), path }) ?? getter();
             },
             set: (val) => {
                 const prevVal = getter();
-                if (!customSetter?.(val, { prevVal, path })) {
+                if (!customSetter?.({ val, prevVal, path })) {
                     setter(val);
                 }
                 if (depthOptions && typeof val === 'object') {
@@ -184,7 +191,7 @@ export class ReactiveStorage {
                     }
                     getter = () => deepTarget;
                 }
-                customPostSetter?.(val, { prevVal, path });
+                customPostSetter?.({ val, prevVal, path });
             },
         });
         // @ts-ignore ???
