@@ -1,6 +1,7 @@
 export type ObjectKey = number | string | symbol;
 export type Data = Record<ObjectKey, any> | Array<any>;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
+export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
 export interface GetterArgs {
     /** Value to be set. */
     val: any;
@@ -61,7 +62,7 @@ export interface RegistrationOptionsWhole {
      * Whether and how keys inside any object or array value should be registered
      * such that they go through additional layers of getters and setters.
      * If a value is reassigned, it is re-registered with the same configuration
-     * until the given depth.
+     * until the given depth. The immediate registered value is depth 0.
      *
      * If given *registration options*, the registered key configuration will
      * assume these options in their layer. Can be nested infinitely deep.
@@ -119,6 +120,40 @@ export interface RegistrationOptionsWhole {
      */
     depth: number | RegistrationOptions;
     /**
+     * Decide whether to deeply register an object covered by {@link depth}.
+     * This is useful to mitigate registering properties within *any* object
+     * (class instances, DOM nodes, etc.) in favor of, for example, only object
+     * literals or arrays – especially when making use of an infinite depth.
+     *
+     * Be careful when changing this, especially when there is user input
+     * involved! Unrestricted recursion may lead to a significant overload
+     * or even an infinite loop when (accidentally) assigning huge objects
+     * like a DOM node.
+     *
+     * Just like all other configuration options, this will be passed down
+     * into any depth unless overridden.
+     *
+     * @remarks
+     * {@link Filter} provides some useful filter functions.
+     *
+     * @example
+     * The first layer will accept any object, depth 1 and below accept
+     * only object literals or arrays.
+     * ```js
+     * const storage = new ReactiveStorage();
+     * storage.registerRecursive('value', 420, {
+     *   setter: val => { console.log("SET", val) },
+     *   depthFilter: Filter.any,
+     *   depth: {
+     *     depthFilter: Filter.objectLiteralOrArray
+     *   }
+     * });
+     * ```
+     *
+     * @default {@link Filter.objectLiteralOrArray}
+     */
+    depthFilter: FilterFunction;
+    /**
      * The endpoint that the registered getters and setters point to.
      *
      * If given *a {@link ReactiveStorage} object*, the given property is registered
@@ -143,6 +178,7 @@ export interface RegistrationOptionsWhole {
     /**
      * Called anytime a value is fetched.
      *
+     * @remarks
      * This is potentially called a lot since, as per the getter/setter hierarchy,
      * any deep value *set* needs to *get* the respective value from a layer above.
      *
@@ -165,8 +201,27 @@ export interface RegistrationOptionsWhole {
 export declare class ReactiveStorageError extends Error {
     constructor(...args: any[]);
 }
+/**
+ * Provides some useful filter functions for use in
+ * {@link RegistrationOptions.depthFilter}.
+ *
+ * Also exposed via {@link ReactiveStorage.Filter}.
+ */
+export declare const Filter: {
+    /** Matches only object literals and arrays. */
+    readonly objectLiteralOrArray: (obj: object) => boolean;
+    /** Matches everything (always returns true). */
+    readonly any: () => true;
+};
 export declare class ReactiveStorage {
     #private;
+    /** @see {@link Filter} */
+    static readonly Filter: {
+        /** Matches only object literals and arrays. */
+        readonly objectLiteralOrArray: (obj: object) => boolean;
+        /** Matches everything (always returns true). */
+        readonly any: () => true;
+    };
     /**
      * Endpoint holding the actual values of the registered properties.
      *

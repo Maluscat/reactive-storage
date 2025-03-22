@@ -1,6 +1,7 @@
 export type ObjectKey = number | string | symbol;
 export type Data = Record<ObjectKey, any> | Array<any>;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
+export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
 
 export interface GetterArgs {
   /** Value to be set. */
@@ -63,7 +64,7 @@ export interface RegistrationOptionsWhole {
    * Whether and how keys inside any object or array value should be registered
    * such that they go through additional layers of getters and setters.
    * If a value is reassigned, it is re-registered with the same configuration
-   * until the given depth.
+   * until the given depth. The immediate registered value is depth 0.
    *
    * If given *registration options*, the registered key configuration will
    * assume these options in their layer. Can be nested infinitely deep.
@@ -121,6 +122,40 @@ export interface RegistrationOptionsWhole {
    */
   depth: number | RegistrationOptions;
   /**
+   * Decide whether to deeply register an object covered by {@link depth}.
+   * This is useful to mitigate registering properties within *any* object
+   * (class instances, DOM nodes, etc.) in favor of, for example, only object
+   * literals or arrays – especially when making use of an infinite depth.
+   *
+   * Be careful when changing this, especially when there is user input
+   * involved! Unrestricted recursion may lead to a significant overload
+   * or even an infinite loop when (accidentally) assigning huge objects
+   * like a DOM node.
+   *
+   * Just like all other configuration options, this will be passed down
+   * into any depth unless overridden.
+   *
+   * @remarks
+   * {@link Filter} provides some useful filter functions.
+   *
+   * @example
+   * The first layer will accept any object, depth 1 and below accept
+   * only object literals or arrays.
+   * ```js
+   * const storage = new ReactiveStorage();
+   * storage.registerRecursive('value', 420, {
+   *   setter: val => { console.log("SET", val) },
+   *   depthFilter: Filter.any,
+   *   depth: {
+   *     depthFilter: Filter.objectLiteralOrArray
+   *   }
+   * });
+   * ```
+   *
+   * @default {@link Filter.objectLiteralOrArray}
+   */
+  depthFilter: FilterFunction;
+  /**
    * The endpoint that the registered getters and setters point to.
    *
    * If given *a {@link ReactiveStorage} object*, the given property is registered
@@ -145,6 +180,7 @@ export interface RegistrationOptionsWhole {
   /**
    * Called anytime a value is fetched.
    *
+   * @remarks
    * This is potentially called a lot since, as per the getter/setter hierarchy,
    * any deep value *set* needs to *get* the respective value from a layer above.
    *
@@ -172,7 +208,24 @@ export class ReactiveStorageError extends Error {
   }
 }
 
+/**
+ * Provides some useful filter functions for use in
+ * {@link RegistrationOptions.depthFilter}.
+ *
+ * Also exposed via {@link ReactiveStorage.Filter}.
+ */
+export const Filter = {
+  /** Matches only object literals and arrays. */
+  objectLiteralOrArray: obj => {
+    return obj != null && (Array.isArray(obj) || Object.getPrototypeOf(obj) === Object.prototype);
+  },
+  /** Matches everything (always returns true). */
+  any: () => true,
+} as const satisfies Record<string, FilterFunction>;
+
 export class ReactiveStorage {
+  /** @see {@link Filter} */
+  static readonly Filter = Filter;
   /**
    * Endpoint holding the actual values of the registered properties.
    * 
@@ -320,6 +373,8 @@ export class ReactiveStorage {
     options: RegistrationOptions = {},
     path: ObjectKey[] = [key]
   ) {
+    options.depthFilter ??= Filter.objectLiteralOrArray;
+
     let endpoint: Endpoint;
     if (options.endpoint) {
       if (options.endpoint instanceof ReactiveStorage) {
@@ -349,13 +404,11 @@ export class ReactiveStorage {
         depthOptions = options.depth;
       }
       hasCustomDepthEndpoint = !!depthOptions.depth;
-      // @ts-ignore
       depthOptions.setter ??= options.setter;
-      // @ts-ignore
       depthOptions.getter ??= options.getter;
-      // @ts-ignore
       depthOptions.postSetter ??= options.postSetter;
       depthOptions.enumerable ??= options.enumerable;
+      depthOptions.depthFilter ??= options.depthFilter;
     }
 
     // Populate endpoint
@@ -372,7 +425,7 @@ export class ReactiveStorage {
         if (!customSetter?.({ val, prevVal, path })) {
           setter(val);
         }
-        if (depthOptions && typeof val === 'object') {
+        if (!!depthOptions && typeof val === 'object' && options.depthFilter?.(val, path)) {
           if (!hasCustomDepthEndpoint) {
             // Instead of creating a new endpoint for every depth, use the objects
             // from the existing endpoint hierarchy. For example for `foo: { bar: 1 }`

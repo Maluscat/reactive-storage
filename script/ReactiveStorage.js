@@ -4,7 +4,23 @@ export class ReactiveStorageError extends Error {
         this.name = this.constructor.name;
     }
 }
+/**
+ * Provides some useful filter functions for use in
+ * {@link RegistrationOptions.depthFilter}.
+ *
+ * Also exposed via {@link ReactiveStorage.Filter}.
+ */
+export const Filter = {
+    /** Matches only object literals and arrays. */
+    objectLiteralOrArray: obj => {
+        return obj != null && (Array.isArray(obj) || Object.getPrototypeOf(obj) === Object.prototype);
+    },
+    /** Matches everything (always returns true). */
+    any: () => true,
+};
 export class ReactiveStorage {
+    /** @see {@link Filter} */
+    static Filter = Filter;
     /**
      * Endpoint holding the actual values of the registered properties.
      *
@@ -122,6 +138,7 @@ export class ReactiveStorage {
     }
     // ---- Static helpers ----
     static #register(target, key, initialValue, options = {}, path = [key]) {
+        options.depthFilter ??= Filter.objectLiteralOrArray;
         let endpoint;
         if (options.endpoint) {
             if (options.endpoint instanceof ReactiveStorage) {
@@ -154,13 +171,11 @@ export class ReactiveStorage {
                 depthOptions = options.depth;
             }
             hasCustomDepthEndpoint = !!depthOptions.depth;
-            // @ts-ignore
             depthOptions.setter ??= options.setter;
-            // @ts-ignore
             depthOptions.getter ??= options.getter;
-            // @ts-ignore
             depthOptions.postSetter ??= options.postSetter;
             depthOptions.enumerable ??= options.enumerable;
+            depthOptions.depthFilter ??= options.depthFilter;
         }
         // Populate endpoint
         setter(initialValue);
@@ -175,7 +190,7 @@ export class ReactiveStorage {
                 if (!customSetter?.({ val, prevVal, path })) {
                     setter(val);
                 }
-                if (depthOptions && typeof val === 'object') {
+                if (!!depthOptions && typeof val === 'object' && options.depthFilter?.(val, path)) {
                     if (!hasCustomDepthEndpoint) {
                         // Instead of creating a new endpoint for every depth, use the objects
                         // from the existing endpoint hierarchy. For example for `foo: { bar: 1 }`
