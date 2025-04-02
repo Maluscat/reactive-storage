@@ -440,6 +440,8 @@ export class ReactiveStorage {
             this.#register(deepTarget, propKey, val[propKey], depthOptions, [ ...path, propKey ]);
           }
           getter = () => deepTarget;
+        } else {
+          getter = ReactiveStorage.#makeGetter(endpoint, key);
         }
         customPostSetter?.({ val, prevVal, path });
       },
