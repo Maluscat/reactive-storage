@@ -71,11 +71,8 @@ export class ReactiveStorage {
      * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     register(key, initialValue, options = {}) {
-        if (typeof key !== 'string' && typeof key !== 'number' && typeof key !== 'symbol') {
-            throw new ReactiveStorageError(`The first argument must be a valid object key (string, number or symbol).`);
-        }
         options.endpoint ??= this.endpoint;
-        ReactiveStorage.#register(this.data, key, initialValue, options);
+        ReactiveStorage.#register(key, initialValue, options);
         return this;
     }
     /**
@@ -92,9 +89,6 @@ export class ReactiveStorage {
      * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
     registerRecursive(key, initialValue, options = {}) {
-        if (typeof key !== 'string' && typeof key !== 'number' && typeof key !== 'symbol') {
-            throw new ReactiveStorageError(`The first argument must be a valid object key (string, number or symbol).`);
-        }
         ReactiveStorage.#addInfiniteDepth(options);
         this.register(key, initialValue, options);
         return this;
@@ -110,11 +104,8 @@ export class ReactiveStorage {
      *
      * @return The endpoint the registered property points to.
      */
-    static register(target, key, initialValue, options = {}) {
-        if (typeof target !== 'object') {
-            throw new ReactiveStorageError(`The first argument must be a data object or array.`);
-        }
-        return this.#register(target, key, initialValue, options);
+    static register(key, initialValue, options = {}) {
+        return this.#register(key, initialValue, options);
     }
     /**
      * Register a reactive property on the given data that points to
@@ -129,59 +120,47 @@ export class ReactiveStorage {
      *
      * @return The endpoint the registered property points to.
      */
-    static registerRecursive(target, key, initialValue, options = {}) {
-        if (typeof target !== 'object') {
-            throw new ReactiveStorageError(`The first argument must be a data object or array.`);
-        }
+    static registerRecursive(key, initialValue, options = {}) {
         this.#addInfiniteDepth(options);
-        return this.register(target, key, initialValue, options);
+        return this.register(key, initialValue, options);
     }
     // ---- Static helpers ----
-    static #register(target, key, initialValue, options = {}, path = [key]) {
-        options.depthFilter ??= Filter.objectLiteralOrArray;
-        let endpoint;
-        if (options.endpoint) {
-            if (options.endpoint instanceof ReactiveStorage) {
-                endpoint = options.endpoint.data;
-                if (!options.endpoint.has(key)) {
-                    options.endpoint.register(key, initialValue);
-                }
-            }
-            else
-                endpoint = options.endpoint;
-        }
-        else
-            endpoint = {};
-        let getter = ReactiveStorage.#makeGetter(endpoint, key);
-        let setter = ReactiveStorage.#makeSetter(endpoint, key);
+    static #register(key, initialValue, options = {}, path = [key]) {
+        const opts = Object.assign({}, options);
+        opts.depthFilter ||= Filter.objectLiteralOrArray;
+        opts.target ||= {};
+        opts.endpoint ||= {};
+        let getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
+        let setter = ReactiveStorage.#makeSetter(opts.endpoint, key);
         let hasCustomDepthEndpoint = false;
-        const customGetter = options.getter;
-        const customSetter = options.setter;
-        const customPostSetter = options.postSetter;
+        const customGetter = opts.getter;
+        const customSetter = opts.setter;
+        const customPostSetter = opts.postSetter;
         // TODO: Limit (infinite) recursion to object literals and arrays instead of any object!
-        let depthOptions;
-        if (options.depth) {
-            if (typeof options.depth !== 'object') {
-                depthOptions = {};
-                if (typeof options.depth === 'number') {
-                    depthOptions.depth = options.depth - 1;
+        let depthOpts;
+        if (opts.depth) {
+            if (typeof opts.depth !== 'object') {
+                depthOpts = {};
+                if (typeof opts.depth === 'number') {
+                    depthOpts.depth = opts.depth - 1;
                 }
             }
             else {
-                depthOptions = options.depth;
+                depthOpts = Object.assign({}, opts.depth);
             }
-            hasCustomDepthEndpoint = !!depthOptions.depth;
-            depthOptions.setter ??= options.setter;
-            depthOptions.getter ??= options.getter;
-            depthOptions.postSetter ??= options.postSetter;
-            depthOptions.enumerable ??= options.enumerable;
-            depthOptions.depthFilter ??= options.depthFilter;
+            hasCustomDepthEndpoint = !!depthOpts.depth;
+            opts.depth = depthOpts;
+            depthOpts.setter ??= opts.setter;
+            depthOpts.getter ??= opts.getter;
+            depthOpts.postSetter ??= opts.postSetter;
+            depthOpts.enumerable ??= opts.enumerable;
+            depthOpts.depthFilter ??= opts.depthFilter;
         }
         // Populate endpoint
         setter(initialValue);
-        Object.defineProperty(target, key, {
+        Object.defineProperty(opts.target, key, {
             configurable: true, // TODO decide?
-            enumerable: options.enumerable ?? true,
+            enumerable: opts.enumerable ?? true,
             get: () => {
                 return customGetter?.({ val: getter(), path }) ?? getter();
             },
@@ -190,31 +169,32 @@ export class ReactiveStorage {
                 if (!customSetter?.({ val, prevVal, path })) {
                     setter(val);
                 }
-                if (!!depthOptions && typeof val === 'object' && options.depthFilter?.(val, path)) {
+                if (!!depthOpts && typeof val === 'object' && opts.depthFilter?.(val, path)) {
                     if (!hasCustomDepthEndpoint) {
                         // Instead of creating a new endpoint for every depth, use the objects
                         // from the existing endpoint hierarchy. For example for `foo: { bar: 1 }`
                         // SET foo -> endpoint `foo: { bar: 1 }`
                         // SET bar -> endpoint `bar: 1` (same object { bar: 1 } within the endpoint above)
-                        depthOptions.endpoint = getter();
+                        // TODO check this
+                        depthOpts.endpoint = getter();
                     }
                     // We don't need to save the deep target anywhere
                     // because it is exposed via the updated getter below
-                    const deepTarget = Array.isArray(val) ? [] : {};
+                    depthOpts.target = Array.isArray(val) ? [] : {};
                     for (const propKey in val) {
-                        this.#register(deepTarget, propKey, val[propKey], depthOptions, [...path, propKey]);
+                        this.#register(propKey, val[propKey], depthOpts, [...path, propKey]);
                     }
-                    getter = () => deepTarget;
+                    getter = () => depthOpts.target;
                 }
                 else {
-                    getter = ReactiveStorage.#makeGetter(endpoint, key);
+                    getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
                 }
                 customPostSetter?.({ val, prevVal, path });
             },
         });
         // @ts-ignore ???
-        target[key] = initialValue;
-        return endpoint;
+        opts.target[key] = initialValue;
+        return opts;
     }
     /**
      * Return a function that gets the given key from the given endpoint.

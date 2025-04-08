@@ -1,7 +1,7 @@
 export type ObjectKey = number | string | symbol;
-export type Data = Record<ObjectKey, any> | Array<any>;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
+export type Data<K extends ObjectKey, V> = K extends number ? V[] | Record<K, V> : Record<K, V>;
 export interface GetterArgs {
     /** Value to be set. */
     val: any;
@@ -50,8 +50,8 @@ export interface SetterArgs {
      */
     path: ObjectKey[];
 }
-export type RegistrationOptions = Partial<RegistrationOptionsWhole>;
-export interface RegistrationOptionsWhole {
+export type RegistrationOptions<K extends ObjectKey = ObjectKey, V = any> = Partial<RegistrationOptionsWhole<K, V>>;
+export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
     /**
      * Whether the value should be enumerable inside {@link ReactiveStorage.data}.
      * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -94,10 +94,10 @@ export interface RegistrationOptionsWhole {
      * ```
      *
      * @example Re-register a deep value
-     * Even though the initial hierarchy is temporarily deleted by assigning
-     * a primitive value of "4", another reassigned value is simply re-registered
-     * with the initial configuration (note that since the `depth` is set to 1,
-     * any potential value inside `second2` will not be reactive).
+     * Even though the initial hierarchy is temporarily deleted by assigning a
+     * primitive value of "4", another reassigned value is simply re-registered
+     * with the initial configuration (note that since the `depth` is merely set
+     * to 1, any potential value inside `second2` will not be reactive).
      * ```js
      * const storage = new ReactiveStorage();
      * storage.register('value', { first: { second: 3 } }, {
@@ -118,7 +118,7 @@ export interface RegistrationOptionsWhole {
      *
      * @default 0
      */
-    depth: number | RegistrationOptions;
+    depth: number | RegistrationOptions<any, any>;
     /**
      * Decide whether to deeply register an object covered by {@link depth}.
      * This is useful to mitigate registering properties within *any* object
@@ -154,16 +154,19 @@ export interface RegistrationOptionsWhole {
      */
     depthFilter: FilterFunction;
     /**
-     * The endpoint that the registered getters and setters point to.
+     * The endpoint that the registered property points to which holds the actual
+     * data, so an object that the configured setter and getter will deposit the
+     * value to and fetch the value from, respectively.
      *
-     * If given *a {@link ReactiveStorage} object*, the given property is registered
-     * onto it with the current configuration, if not already done.
-     *
-     * Register an endpoint's property yourself to control its options.
-     *
-     * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
+     * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}
+     *          or a new object if called statically.
      */
-    endpoint: Endpoint | ReactiveStorage[] | ReactiveStorage;
+    endpoint: Endpoint;
+    /**
+     * An object that represents the access point for the registered properties.
+     * Values are deposited at the specified {@link endpoint}.
+     */
+    target: Data<K, V>;
     /**
      * Called *after* a value has been set.
      */
@@ -172,7 +175,8 @@ export interface RegistrationOptionsWhole {
      * Called *before* a value is set.
      *
      * Return `true` to stop the value from being set.
-     * This can be useful to filter specific values or when setting them manually.
+     * This can be useful to filter specific values or when setting them manually
+     * in the setter.
      */
     setter: (args: SetterArgs) => void | boolean;
     /**
@@ -232,14 +236,14 @@ export declare class ReactiveStorage {
      * Access point for registered properties.
      * Can be customized in the constructor.
      */
-    readonly data: Data;
+    readonly data: any[] | Record<string, any> | Record<number, any> | Record<symbol, any>;
     /**
      * @param data The {@link ReactiveStorage.data} object that represents
      *             the access point for the registered properties.
      * @param endpoint The {@link ReactiveStorage.endpoint} that holds the
      *                 actual registered data.
      */
-    constructor(data?: Data, endpoint?: Endpoint);
+    constructor(data?: Data<ObjectKey, any>, endpoint?: Endpoint);
     /** Check for existence of a registered property on {@link data}. */
     has(key: ObjectKey): boolean;
     /** Delete {@link data} and {@link endpoint} entry of a registered property. */
@@ -278,7 +282,7 @@ export declare class ReactiveStorage {
      *
      * @return The endpoint the registered property points to.
      */
-    static register<K extends ObjectKey, V extends any>(target: V[] | Record<K, V>, key: K, initialValue: V, options?: RegistrationOptions): Endpoint;
+    static register<K extends ObjectKey, V extends any>(key: K, initialValue: V, options?: RegistrationOptions<K, V>): Partial<RegistrationOptionsWhole<K, V>>;
     /**
      * Register a reactive property on the given data that points to
      * the given endpoint or a new object if unspecified.
@@ -292,5 +296,5 @@ export declare class ReactiveStorage {
      *
      * @return The endpoint the registered property points to.
      */
-    static registerRecursive<K extends ObjectKey, V extends any>(target: V[] | Record<K, V>, key: K, initialValue: V, options?: RegistrationOptions): Endpoint;
+    static registerRecursive<K extends ObjectKey, V extends any>(key: K, initialValue: V, options?: RegistrationOptions<K, V>): Partial<RegistrationOptionsWhole<K, V>>;
 }
