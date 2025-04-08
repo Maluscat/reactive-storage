@@ -96,10 +96,10 @@ export interface RegistrationOptionsWhole {
    * ```
    *
    * @example Re-register a deep value
-   * Even though the initial hierarchy is temporarily deleted by assigning
-   * a primitive value of "4", another reassigned value is simply re-registered
-   * with the initial configuration (note that since the `depth` is set to 1, 
-   * any potential value inside `second2` will not be reactive).
+   * Even though the initial hierarchy is temporarily deleted by assigning a
+   * primitive value of "4", another reassigned value is simply re-registered
+   * with the initial configuration (note that since the `depth` is merely set
+   * to 1, any potential value inside `second2` will not be reactive).
    * ```js
    * const storage = new ReactiveStorage();
    * storage.register('value', { first: { second: 3 } }, {
@@ -156,16 +156,14 @@ export interface RegistrationOptionsWhole {
    */
   depthFilter: FilterFunction;
   /**
-   * The endpoint that the registered getters and setters point to.
+   * The endpoint that the registered property points to, so an object that the
+   * configured setter and getter will deposit the value to and fetch the value
+   * from, respectively.
    *
-   * If given *a {@link ReactiveStorage} object*, the given property is registered
-   * onto it with the current configuration, if not already done.
-   *
-   * Register an endpoint's property yourself to control its options.
-   *
-   * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}.
+   * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}
+   *          or a new object if called statically.
    */
-  endpoint: Endpoint | ReactiveStorage[] | ReactiveStorage;
+  endpoint: Endpoint;
   /**
    * Called *after* a value has been set.
    */
@@ -174,7 +172,8 @@ export interface RegistrationOptionsWhole {
    * Called *before* a value is set.
    *
    * Return `true` to stop the value from being set.
-   * This can be useful to filter specific values or when setting them manually.
+   * This can be useful to filter specific values or when setting them manually
+   * in the setter.
    */
   setter: (args: SetterArgs) => void | boolean;
   /**
@@ -375,16 +374,7 @@ export class ReactiveStorage {
   ) {
     options.depthFilter ??= Filter.objectLiteralOrArray;
 
-    let endpoint: Endpoint;
-    if (options.endpoint) {
-      if (options.endpoint instanceof ReactiveStorage) {
-        endpoint = options.endpoint.data; 
-        if (!options.endpoint.has(key)) {
-          options.endpoint.register(key, initialValue);
-        }
-      } else endpoint = options.endpoint;
-    } else endpoint = {};
-
+    const endpoint = options.endpoint || {};
     let getter = ReactiveStorage.#makeGetter(endpoint, key);
     let setter = ReactiveStorage.#makeSetter(endpoint, key);
     let hasCustomDepthEndpoint = false;
