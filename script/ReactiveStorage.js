@@ -21,26 +21,17 @@ export const Filter = {
 export class ReactiveStorage {
     /** @see {@link Filter} */
     static Filter = Filter;
-    /**
-     * Endpoint holding the actual values of the registered properties.
-     *
-     * Values should not be overridden.
-     */
-    endpoint;
-    /**
-     * Access point for registered properties.
-     * Can be customized in the constructor.
-     */
-    data;
-    /**
-     * @param data The {@link ReactiveStorage.data} object that represents
-     *             the access point for the registered properties.
-     * @param endpoint The {@link ReactiveStorage.endpoint} that holds the
-     *                 actual registered data.
-     */
-    constructor(data = {}, endpoint = {}) {
-        this.data = data || {};
-        this.endpoint = endpoint || {};
+    /** Endpoint holding the actual values of the registered properties. */
+    get endpoint() {
+        return this.config.endpoint;
+    }
+    /** Access point for registered properties. */
+    get data() {
+        return this.config.target;
+    }
+    config;
+    constructor(config = {}) {
+        this.config = ReactiveStorage.#prepareConfig(config);
     }
     /** Check for existence of a registered property on {@link data}. */
     has(key) {
@@ -70,9 +61,8 @@ export class ReactiveStorage {
      *
      * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
-    register(key, initialValue, options = {}) {
-        options.endpoint ??= this.endpoint;
-        ReactiveStorage.#register(key, initialValue, options);
+    register(key, initialValue) {
+        ReactiveStorage.#register(key, initialValue, this.config);
         return this;
     }
     /**
@@ -88,9 +78,8 @@ export class ReactiveStorage {
      *
      * @returns The {@link ReactiveStorage} instance for easy chaining.
      */
-    registerRecursive(key, initialValue, options = {}) {
-        ReactiveStorage.#addInfiniteDepth(options);
-        this.register(key, initialValue, options);
+    registerRecursive(key, initialValue) {
+        ReactiveStorage.#register(key, initialValue, this.config, true);
         return this;
     }
     // ---- Static methods ----
@@ -104,8 +93,8 @@ export class ReactiveStorage {
      *
      * @return The endpoint the registered property points to.
      */
-    static register(key, initialValue, options = {}) {
-        return this.#register(key, initialValue, options);
+    static register(key, initialValue, config = {}) {
+        return this.#register(key, initialValue, config);
     }
     /**
      * Register a reactive property on the given data that points to
@@ -120,28 +109,26 @@ export class ReactiveStorage {
      *
      * @return The endpoint the registered property points to.
      */
-    static registerRecursive(key, initialValue, options = {}) {
-        this.#addInfiniteDepth(options);
-        return this.register(key, initialValue, options);
+    static registerRecursive(key, initialValue, config = {}) {
+        return this.#register(key, initialValue, config, true);
     }
     // ---- Static helpers ----
-    static #register(key, initialValue, options = {}, path = [key]) {
-        const opts = Object.assign({}, options);
-        opts.depthFilter ||= Filter.objectLiteralOrArray;
-        opts.target ||= {};
-        opts.endpoint ||= {};
+    static #register(key, initialValue, config = {}, recursive = false, path = [key]) {
+        const opts = this.#prepareConfig(config);
         let getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
         let setter = ReactiveStorage.#makeSetter(opts.endpoint, key);
         let hasCustomDepthEndpoint = false;
         const customGetter = opts.getter;
         const customSetter = opts.setter;
         const customPostSetter = opts.postSetter;
-        // TODO: Limit (infinite) recursion to object literals and arrays instead of any object!
         let depthOpts;
-        if (opts.depth) {
+        if (opts.depth || recursive) {
             if (typeof opts.depth !== 'object') {
                 depthOpts = {};
-                if (typeof opts.depth === 'number') {
+                if (recursive) {
+                    depthOpts.depth = Infinity;
+                }
+                else if (typeof opts.depth === 'number') {
                     depthOpts.depth = opts.depth - 1;
                 }
             }
@@ -149,12 +136,12 @@ export class ReactiveStorage {
                 depthOpts = Object.assign({}, opts.depth);
             }
             hasCustomDepthEndpoint = !!depthOpts.depth;
-            opts.depth = depthOpts;
             depthOpts.setter ??= opts.setter;
             depthOpts.getter ??= opts.getter;
             depthOpts.postSetter ??= opts.postSetter;
             depthOpts.enumerable ??= opts.enumerable;
             depthOpts.depthFilter ??= opts.depthFilter;
+            opts.depth = depthOpts;
         }
         // Populate endpoint
         setter(initialValue);
@@ -182,7 +169,7 @@ export class ReactiveStorage {
                     // because it is exposed via the updated getter below
                     depthOpts.target = Array.isArray(val) ? [] : {};
                     for (const propKey in val) {
-                        this.#register(propKey, val[propKey], depthOpts, [...path, propKey]);
+                        this.#register(propKey, val[propKey], depthOpts, recursive, [...path, propKey]);
                     }
                     getter = () => depthOpts.target;
                 }
@@ -222,15 +209,14 @@ export class ReactiveStorage {
         }
     }
     /**
-     * Add a depth of {@link Infinity} at the deepest possible depth
-     * configuration of {@link RegistrationOptions}.
+     * Add default values to specific fields of a config if unspecified
+     * and return a shallow copy.
      * @internal
      */
-    static #addInfiniteDepth(options) {
-        let deepOptions = options;
-        while (deepOptions.depth != null && typeof options.depth === 'object' && deepOptions !== deepOptions.depth) {
-            deepOptions = deepOptions.depth;
-        }
-        deepOptions.depth = Infinity;
+    static #prepareConfig(config) {
+        config.depthFilter ||= Filter.objectLiteralOrArray;
+        config.target ||= {};
+        config.endpoint ||= {};
+        return Object.assign({}, config);
     }
 }
