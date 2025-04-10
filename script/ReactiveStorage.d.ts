@@ -2,7 +2,8 @@ export type ObjectKey = number | string | symbol;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
 export type Data<K extends ObjectKey, V> = K extends number ? V[] | Record<K, V> : Record<K, V>;
-export interface GetterArgs {
+/** {@link RegistrationOptions.getter} event argument. */
+export interface GetterData {
     /** Value to be set. */
     val: any;
     /**
@@ -10,11 +11,10 @@ export interface GetterArgs {
      *
      * @example
      * ```js
-     * const storage = new ReactiveStorage();
-     * storage.register('value', { first: { second: 3 } }, {
+     * const storage = new ReactiveStorage({
      *   getter: ({ path }) => { console.log("GET:", path) },
-     *   depth: Infinity
      * });
+     * storage.registerRecursive('value', { first: { second: 3 } });
      *
      * // <Logs from the initial assignment...>
      *
@@ -26,9 +26,15 @@ export interface GetterArgs {
      */
     path: ObjectKey[];
 }
-export interface SetterArgs {
+/**
+ * {@link RegistrationOptions.setter} and {@link RegistrationOptions.postSetter}
+ * event argument.
+ */
+export interface SetterData {
     /** Value to be set. */
     val: any;
+    /** Whether this call is propagated by the initial registration action. */
+    initial: boolean;
     /** Previous value. */
     prevVal: any;
     /**
@@ -36,11 +42,10 @@ export interface SetterArgs {
      *
      * @example
      * ```js
-     * const storage = new ReactiveStorage();
-     * storage.register('value', { first: { second: 3 } }, {
-     *   setter: ({ path }) => { console.log("SET:", path) },
-     *   depth: Infinity
+     * const storage = new ReactiveStorage({
+     *   setter: ({ path }) => { console.log("SET:", path) }
      * });
+     * storage.registerRecursive('value', { first: { second: 3 } });
      *
      * // <Logs from the initial assignment...>
      *
@@ -84,11 +89,10 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      * {@link Filter} provides some useful filter functions.
      *
      * @example
-     * The first layer will accept any object, depth 1 and below accept
-     * only object literals or arrays.
+     * The first layer will deeply register *any* object, depth 1 and below
+     * accept only object literals or arrays.
      * ```js
-     * const storage = new ReactiveStorage();
-     * storage.registerRecursive('value', 420, {
+     * ReactiveStorage.registerRecursive('value', 420, {
      *   setter: val => { console.log("SET", val) },
      *   depthFilter: Filter.any,
      *   depth: {
@@ -121,14 +125,14 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      *
      * @example Different options from layer 2 onwards
      * ```js
-     * const storage = new ReactiveStorage();
-     * storage.register('recursive', { first: { second: 3 } }, {
+     * const storage = new ReactiveStorage({
      *   setter: val => { console.log("First layer:", val) },
      *   depth: {
      *     setter: val => { console.log("Further layer:", val) },
      *     depth: Infinity
      *   }
      * });
+     * storage.register('recursive', { first: { second: 3 } });
      *
      * // <Logs from the initial assignment...>
      *
@@ -147,11 +151,11 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      * with the initial configuration (note that since the `depth` is merely set
      * to 1, any potential value inside `second2` will not be reactive).
      * ```js
-     * const storage = new ReactiveStorage();
-     * storage.register('value', { first: { second: 3 } }, {
+     * const storage = new ReactiveStorage({
      *   setter: val => { console.log("SET", val) },
      *   depth: 1
      * });
+     * storage.register('value', { first: { second: 3 } });
      *
      * // "SET { first: { second: 3 } }"
      * // "SET { second: 3 }"
@@ -170,7 +174,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
     /**
      * Called *after* a value has been set.
      */
-    postSetter?: (args: SetterArgs) => void;
+    postSetter?: (args: SetterData) => void;
     /**
      * Called *before* a value is set.
      *
@@ -178,7 +182,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      * This can be useful to filter specific values or when setting them manually
      * in the setter.
      */
-    setter?: (args: SetterArgs) => void | boolean;
+    setter?: (args: SetterData) => void | boolean;
     /**
      * Called anytime a value is fetched.
      *
@@ -188,11 +192,11 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      *
      * @example
      * ```js
-     * const storage = new ReactiveStorage();
-     * storage.register('value', { first: { second: 3 } }, {
+     * const storage = new ReactiveStorage({
      *   getter: val => { console.log("GET", val) },
      *   depth: Infinity
      * });
+     * storage.register('value', { first: { second: 3 } });
      *
      * storage.data.value.first.second = 8
      * // "GET { first: { second: 3 } }"
@@ -200,7 +204,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      * // "GET 8"
      * ```
      */
-    getter?: (args: GetterArgs) => any;
+    getter?: (args: GetterData) => any;
 }
 export declare class ReactiveStorageError extends Error {
     constructor(...args: any[]);
@@ -244,18 +248,19 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
     delete(key: ObjectKey): boolean;
     /**
      * Register a reactive property on {@link data} that points to
-     * the given endpoint or {@link endpoint} if unspecified.
+     * {@link endpoint}.
      *
      * @param key The property name to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @returns The {@link ReactiveStorage} instance for easy chaining.
+     * @returns The current {@link ReactiveStorage} instance for easy chaining.
      */
     register(key: K, initialValue: V): this;
     /**
-     * Register a reactive property on {@link data} recursively deep
-     * by traversing its initial value and registering all properties
-     * within any found array or object literal.
+     * Register a reactive property on {@link data} recursively deep by
+     * traversing its initial value and registering all properties within any
+     * found array or object literal
+     * (limited by {@link RegistrationOptions.deepFilter}, if any).
      *
      * Shorthand for {@link ReactiveStorage#register} with the deepest
      * {@link RegistrationOptions.depth} set to `Infinity`.
@@ -263,32 +268,32 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      * @param key The property name to register on {@link data}.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @returns The {@link ReactiveStorage} instance for easy chaining.
+     * @returns The current {@link ReactiveStorage} instance for easy chaining.
      */
     registerRecursive(key: K, initialValue: V): this;
     /**
-     * Register a reactive property on the given data that points to
-     * the given endpoint or a new object if unspecified.
+     * Register a reactive property on a target that points to an endpoint.
+     * If left unspecified, target and/or endpoint will be a new object that can
+     * be obtained using the returned final configuration.
      *
-     * @param data The object or array to register the property on.
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @return The endpoint the registered property points to.
+     * @return The final configuration with default values.
      */
     static register<K extends ObjectKey, V extends any>(key: K, initialValue: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
     /**
-     * Register a reactive property on the given data that points to
-     * the given endpoint or a new object if unspecified.
+     * Register a reactive property on a target recursively deep by traversing
+     * its initial value and registering all properties within any found array or
+     * object literal (limited by {@link RegistrationOptions.deepFilter}, if any).
      *
      * Shorthand for {@link register} with the deepest
      * {@link RegistrationOptions.depth} set to `Infinity`.
      *
-     * @param data The object or array to register the property on.
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @return The endpoint the registered property points to.
+     * @return The final configuration with default values.
      */
     static registerRecursive<K extends ObjectKey, V extends any>(key: K, initialValue: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
 }

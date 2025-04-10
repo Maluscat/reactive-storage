@@ -34,6 +34,8 @@ export interface GetterData {
 export interface SetterData {
   /** Value to be set. */
   val: any;
+  /** Whether this call is propagated by the initial registration action. */
+  initial: boolean;
   /** Previous value. */
   prevVal: any;
   /**
@@ -360,6 +362,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
     let getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
     let setter = ReactiveStorage.#makeSetter(opts.endpoint, key);
     let hasCustomDepthEndpoint = false;
+    let initial = true;
     const customGetter = opts.getter;
     const customSetter = opts.setter;
     const customPostSetter = opts.postSetter;
@@ -398,7 +401,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
       },
       set: (val: any) => {
         const prevVal = getter();
-        if (!customSetter?.({ val, prevVal, path })) {
+        if (!customSetter?.({ val, prevVal, initial, path })) {
           setter(val);
         }
         if (!!depthOpts && typeof val === 'object' && opts.depthFilter?.(val, path)) {
@@ -420,12 +423,13 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
         } else {
           getter = ReactiveStorage.#makeGetter(opts.endpoint!, key);
         }
-        customPostSetter?.({ val, prevVal, path });
+        customPostSetter?.({ val, prevVal, initial, path });
       },
     });
 
     // @ts-ignore ???
     opts.target[key] = initialValue;
+    initial = false;
 
     return opts;
   }
