@@ -21,11 +21,17 @@ export const Filter = {
 export class ReactiveStorage {
     /** @see {@link Filter} */
     static Filter = Filter;
-    /** Endpoint holding the actual values of the registered properties. */
+    /**
+     * Endpoint holding the actual values of the registered properties.
+     * @see {@link RegistrationOptions.endpoint}
+     */
     get endpoint() {
         return this.config.endpoint;
     }
-    /** Access point for registered properties. */
+    /**
+     * Access point for registered properties.
+     * @see {@link RegistrationOptions.target}
+     */
     get data() {
         return this.config.target;
     }

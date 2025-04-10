@@ -226,9 +226,15 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
         /** Matches everything (always returns true). */
         readonly any: () => true;
     };
-    /** Endpoint holding the actual values of the registered properties. */
+    /**
+     * Endpoint holding the actual values of the registered properties.
+     * @see {@link RegistrationOptions.endpoint}
+     */
     get endpoint(): Endpoint;
-    /** Access point for registered properties. */
+    /**
+     * Access point for registered properties.
+     * @see {@link RegistrationOptions.target}
+     */
     get data(): Data<K, V>;
     readonly config: Readonly<RegistrationOptionsWhole<K, V>>;
     constructor(config?: RegistrationOptions<K, V>);
