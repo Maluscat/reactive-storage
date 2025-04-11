@@ -284,7 +284,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    *
    * @returns The current {@link ReactiveStorage} instance for easy chaining.
    */
-  register(key: K, initialValue: V) {
+  register(key: K, initialValue?: V) {
     ReactiveStorage.#register(key, initialValue, this.config);
     return this;
   }
@@ -303,7 +303,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    *
    * @returns The current {@link ReactiveStorage} instance for easy chaining.
    */
-  registerRecursive(key: K, initialValue: V) {
+  registerRecursive(key: K, initialValue?: V) {
     ReactiveStorage.#register(key, initialValue, this.config, true);
     return this;
   }
@@ -322,7 +322,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    */
   static register<K extends ObjectKey, V extends any>(
     key: K,
-    initialValue: V,
+    initialValue?: V,
     config: RegistrationOptions<K, V> = {}
   ) {
     return this.#register(key, initialValue, config);
@@ -343,7 +343,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    */
   static registerRecursive<K extends ObjectKey, V extends any>(
     key: K,
-    initialValue: V,
+    initialValue?: V,
     config: RegistrationOptions<K, V> = {}
   ) {
     return this.#register(key, initialValue, config, true);
@@ -353,7 +353,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
   // ---- Static helpers ----
   static #register<K extends ObjectKey, V extends any>(
     key: K,
-    initialValue: V,
+    initialValue?: V,
     config: RegistrationOptions<K, V> = {},
     recursive = false,
     path: ObjectKey[] = [key]
@@ -427,8 +427,10 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
       },
     });
 
-    // @ts-ignore ???
-    opts.target[key] = initialValue;
+    if (initialValue !== undefined) {
+      // @ts-ignore ???
+      opts.target[key] = initialValue;
+    }
     initial = false;
 
     return opts;

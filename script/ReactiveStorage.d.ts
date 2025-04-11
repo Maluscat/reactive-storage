@@ -255,7 +255,7 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      *
      * @returns The current {@link ReactiveStorage} instance for easy chaining.
      */
-    register(key: K, initialValue: V): this;
+    register(key: K, initialValue?: V): this;
     /**
      * Register a reactive property on {@link data} recursively deep by
      * traversing its initial value and registering all properties within any
@@ -270,7 +270,7 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      *
      * @returns The current {@link ReactiveStorage} instance for easy chaining.
      */
-    registerRecursive(key: K, initialValue: V): this;
+    registerRecursive(key: K, initialValue?: V): this;
     /**
      * Register a reactive property on a target that points to an endpoint.
      * If left unspecified, target and/or endpoint will be a new object that can
@@ -281,7 +281,7 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      *
      * @return The final configuration with default values.
      */
-    static register<K extends ObjectKey, V extends any>(key: K, initialValue: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
+    static register<K extends ObjectKey, V extends any>(key: K, initialValue?: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
     /**
      * Register a reactive property on a target recursively deep by traversing
      * its initial value and registering all properties within any found array or
@@ -295,5 +295,5 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      *
      * @return The final configuration with default values.
      */
-    static registerRecursive<K extends ObjectKey, V extends any>(key: K, initialValue: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
+    static registerRecursive<K extends ObjectKey, V extends any>(key: K, initialValue?: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
 }

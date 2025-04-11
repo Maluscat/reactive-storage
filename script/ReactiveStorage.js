@@ -187,8 +187,10 @@ export class ReactiveStorage {
                 customPostSetter?.({ val, prevVal, initial, path });
             },
         });
-        // @ts-ignore ???
-        opts.target[key] = initialValue;
+        if (initialValue !== undefined) {
+            // @ts-ignore ???
+            opts.target[key] = initialValue;
+        }
         initial = false;
         return opts;
     }
