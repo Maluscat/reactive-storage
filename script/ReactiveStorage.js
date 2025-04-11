@@ -226,6 +226,8 @@ export class ReactiveStorage {
         config.depthFilter ||= Filter.objectLiteralOrArray;
         config.target ||= {};
         config.endpoint ||= {};
+        config.depth ??= 0;
+        config.enumerable ??= true;
         return Object.assign({}, config);
     }
 }

@@ -62,13 +62,13 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      * data, so an object that the configured setter and getter will deposit the
      * value to and fetch the value from, respectively.
      *
-     * @default The current {@link ReactiveStorage}'s {@link ReactiveStorage.endpoint}
-     *          or a new object if called statically.
+     * @default {}
      */
     endpoint: Endpoint;
     /**
      * An object that represents the access point for the registered properties.
      * Values are deposited at the specified {@link endpoint}.
+     * @default {}
      */
     target: Data<K, V>;
     /**
