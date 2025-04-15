@@ -257,21 +257,6 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      */
     register(key: K, initialValue?: V): this;
     /**
-     * Register a reactive property on {@link data} recursively deep by
-     * traversing its initial value and registering all properties within any
-     * found array or object literal
-     * (limited by {@link RegistrationOptions.deepFilter}, if any).
-     *
-     * Shorthand for {@link ReactiveStorage#register} with the deepest
-     * {@link RegistrationOptions.depth} set to `Infinity`.
-     *
-     * @param key The property name to register on {@link data}.
-     * @param initialValue The initial value that will be assigned after registering.
-     *
-     * @returns The current {@link ReactiveStorage} instance for easy chaining.
-     */
-    registerRecursive(key: K, initialValue?: V): this;
-    /**
      * Register a reactive property on a target that points to an endpoint.
      * If left unspecified, target and/or endpoint will be a new object that can
      * be obtained using the returned final configuration.

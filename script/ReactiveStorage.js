@@ -71,24 +71,6 @@ export class ReactiveStorage {
         ReactiveStorage.#register(key, initialValue, this.config);
         return this;
     }
-    /**
-     * Register a reactive property on {@link data} recursively deep by
-     * traversing its initial value and registering all properties within any
-     * found array or object literal
-     * (limited by {@link RegistrationOptions.deepFilter}, if any).
-     *
-     * Shorthand for {@link ReactiveStorage#register} with the deepest
-     * {@link RegistrationOptions.depth} set to `Infinity`.
-     *
-     * @param key The property name to register on {@link data}.
-     * @param initialValue The initial value that will be assigned after registering.
-     *
-     * @returns The current {@link ReactiveStorage} instance for easy chaining.
-     */
-    registerRecursive(key, initialValue) {
-        ReactiveStorage.#register(key, initialValue, this.config, true);
-        return this;
-    }
     // ---- Static methods ----
     /**
      * Register a reactive property on a target that points to an endpoint.
@@ -149,8 +131,8 @@ export class ReactiveStorage {
             depthOpts.postSetter ??= opts.postSetter;
             depthOpts.enumerable ??= opts.enumerable;
             depthOpts.depthFilter ??= opts.depthFilter;
-            opts.depth = depthOpts;
         }
+        // TODO: This should probably be fenced by `customSetter` as well!
         // Populate endpoint
         setter(initialValue);
         Object.defineProperty(opts.target, key, {
