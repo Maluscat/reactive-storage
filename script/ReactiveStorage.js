@@ -157,7 +157,7 @@ export class ReactiveStorage {
             },
             set: (val) => {
                 const prevVal = getter();
-                if (!customSetter?.({ val, prevVal, initial, path })) {
+                if (!customSetter?.({ val, prevVal, initial, path, set: setter })) {
                     setter(val);
                 }
                 if (!!depthOpts && typeof val === 'object' && opts.depthFilter?.(val, path)) {

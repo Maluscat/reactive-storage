@@ -93,7 +93,7 @@ describe('Register', () => {
   });
 });
 
-describe('setter/getter', () => {
+describe('Setter', () => {
   describe('Should not be called with an initial value of `undefined`', () => {
     it('Instance', () => {
       const c = create({
@@ -119,41 +119,62 @@ describe('setter/getter', () => {
       });
     });
   });
-  describe('param: initial', () => {
-    it('setter', () => {
-      let i = 0;
-      let expected = true;
-      const c = ReactiveStorage.register('foo', 6, {
-        setter: ({ initial }) => {
-          i++;
-          assert.equal(initial, expected);
-        }
+  describe('Parameters', () => {
+    describe('`initial`', () => {
+      it('setter', () => {
+        let i = 0;
+        let expected = true;
+        const c = ReactiveStorage.register('foo', 6, {
+          setter: ({ initial }) => {
+            i++;
+            assert.equal(initial, expected);
+          }
+        });
+        expected = false;
+
+        c.target.foo = 3;
+
+        assert.equal(i, 2, "Setter hasn't been called the expected amount of times");
       });
-      expected = false;
+      it('setter: deep', () => {
+        let i = 0;
+        let expected = true;
+        const c = ReactiveStorage.registerRecursive('foo', { bar: { baz: 4 }, balt: 'a' }, {
+          setter: ({ initial }) => {
+            i++;
+            assert.equal(initial, expected);
+          }
+        });
+        // foo = { ... }
+        // foo.bar = { ... }
+        // foo.bar.baz = 4
+        // foo.balt = 'a'
+        expected = false;
 
-      c.target.foo = 3;
+        c.target.foo.bar.baz = 3;
+        c.target.foo = [];
 
-      assert.equal(i, 2, "Setter hasn't been called the expected amount of times");
+        assert.equal(i, 6, "Setter hasn't been called the expected amount of times");
+      });
     });
-    it('setter: deep', () => {
-      let i = 0;
-      let expected = true;
-      const c = ReactiveStorage.registerRecursive('foo', { bar: { baz: 4 }, balt: 'a' }, {
-        setter: ({ initial }) => {
-          i++;
-          assert.equal(initial, expected);
-        }
-      });
-      // foo = { ... }
-      // foo.bar = { ... }
-      // foo.bar.baz = 4
-      // foo.balt = 'a'
-      expected = false;
+    describe('`setter`', () => {
+      it('Base', () => {
+        const c = ReactiveStorage.register('foo', 6, {
+          setter: ({ val, set }) => {
+            if (val > 20) {
+              set(20);
+              return true;
+            }
+          }
+        });
+        assert.equal(c.target.foo, 6);
 
-      c.target.foo.bar.baz = 3;
-      c.target.foo = [];
+        c.target.foo = 3;
+        assert.equal(c.target.foo, 3);
 
-      assert.equal(i, 6, "Setter hasn't been called the expected amount of times");
+        c.target.foo = 420;
+        assert.equal(c.target.foo, 20);
+      })
     });
   });
 })

@@ -27,12 +27,9 @@ export interface GetterData {
    */
   path: ObjectKey[];
 }
-/**
- * {@link RegistrationOptions.setter} and {@link RegistrationOptions.postSetter}
- * event argument.
- */
-export interface SetterData {
-  /** Value to be set. */
+/** {@link RegistrationOptions.postSetter} event argument. */
+export interface PostSetterData {
+  /** Value that was set. */
   val: any;
   /** Whether this call is propagated by the initial registration action. */
   initial: boolean;
@@ -55,6 +52,17 @@ export interface SetterData {
    * ```
    */
   path: ObjectKey[];
+}
+/** {@link RegistrationOptions.setter} event argument. */
+export interface SetterData extends PostSetterData {
+  /** Value to be set. */
+  val: any;
+  /**
+   * Default setter that can be used to set a value different from the passed
+   * one to the expected endpoint. When using it, you should prevent the
+   * default value from being set by returning `true`.
+   */
+  set: (val: any) => void
 }
 
 export type RegistrationOptions<K extends ObjectKey = ObjectKey, V = any> = Partial<RegistrationOptionsWhole<K, V>>
@@ -176,13 +184,13 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
   /**
    * Called *after* a value has been set.
    */
-  postSetter?: (args: SetterData) => void;
+  postSetter?: (args: PostSetterData) => void;
   /**
    * Called *before* a value is set.
    *
-   * Return `true` to stop the value from being set.
-   * This can be useful to filter specific values or when setting them manually
-   * in the setter.
+   * Return `true` to prevent the value from being set to the default endpoint.
+   * This can be useful to filter specific values or when setting them manually,
+   * in which case the passed {@link SetterData.set} is useful.
    */
   setter?: (args: SetterData) => void | boolean;
   /**
@@ -400,7 +408,7 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
       },
       set: (val: any) => {
         const prevVal = getter();
-        if (!customSetter?.({ val, prevVal, initial, path })) {
+        if (!customSetter?.({ val, prevVal, initial, path, set: setter })) {
           setter(val);
         }
         if (!!depthOpts && typeof val === 'object' && opts.depthFilter?.(val, path)) {
