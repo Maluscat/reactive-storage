@@ -4,12 +4,29 @@
   "author": "Maluscat <maluscat@proton.me> (https://malus.zone/)",
   "license": "ISC",
   "description": "Register, observe and intercept deeply reactive data without the need for proxies",
-  "keywords": ["reactive", "observable", "data", "properties", "property"],
+  "keywords": [
+    "reactive",
+    "observable",
+    "data",
+    "properties",
+    "property"
+  ],
   "homepage": "https://github.com/Maluscat/reactive-storage",
   "bugs": {
     "url": "https://gitlab.com/Maluscat/reactive-storage/-/issues"
   },
   "type": "module",
   "main": "./script/ReactiveStorage.js",
-  "files": [ "script/" ]
+  "files": [
+    "script/"
+  ],
+  "scripts": {
+    "test": "mocha ./test/main.js"
+  },
+  "packageManager": "yarn@4.9.1",
+  "devDependencies": {
+    "@types/chai": "^5",
+    "chai": "^5.2.0",
+    "mocha": "11.1.0"
+  }
 }
