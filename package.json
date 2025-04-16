@@ -1,0 +1,15 @@
+{
+  "name": "@maluscat/reactive-storage",
+  "version": "1.0.0",
+  "author": "Maluscat <maluscat@proton.me> (https://malus.zone/)",
+  "license": "ISC",
+  "description": "Register, observe and intercept deeply reactive data without the need for proxies",
+  "keywords": ["reactive", "observable", "data", "properties", "property"],
+  "homepage": "https://github.com/Maluscat/reactive-storage",
+  "bugs": {
+    "url": "https://gitlab.com/Maluscat/reactive-storage/-/issues"
+  },
+  "type": "module",
+  "main": "./script/ReactiveStorage.js",
+  "files": [ "script/" ]
+}
