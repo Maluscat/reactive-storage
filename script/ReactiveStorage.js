@@ -68,7 +68,7 @@ export class ReactiveStorage {
      * @returns The current {@link ReactiveStorage} instance for easy chaining.
      */
     register(key, initialValue) {
-        ReactiveStorage.#register(key, initialValue, this.config);
+        ReactiveStorage.#registerGeneric(key, initialValue, this.config);
         return this;
     }
     // ---- Static methods ----
@@ -83,7 +83,9 @@ export class ReactiveStorage {
      * @return The final configuration with default values.
      */
     static register(key, initialValue, config = {}) {
-        return this.#register(key, initialValue, config);
+        const opts = this.#prepareConfig(config);
+        this.#registerGeneric(key, initialValue, opts);
+        return opts;
     }
     /**
      * Register a reactive property on a target recursively deep by traversing
@@ -99,10 +101,22 @@ export class ReactiveStorage {
      * @return The final configuration with default values.
      */
     static registerRecursive(key, initialValue, config = {}) {
-        return this.#register(key, initialValue, config, true);
+        const opts = this.#prepareConfig(config);
+        this.#registerGeneric(key, initialValue, opts, true);
+        return opts;
     }
     // ---- Static helpers ----
-    static #register(key, initialValue, config = {}, recursive = false, path = [key]) {
+    static #registerGeneric(key, initialValue, opts, recursive = false) {
+        if (Array.isArray(key)) {
+            for (const singleKey of key) {
+                this.#register(singleKey, initialValue, opts, recursive);
+            }
+        }
+        else {
+            this.#register(key, initialValue, opts, recursive);
+        }
+    }
+    static #register(key, initialValue, config, recursive, path = [key]) {
         const opts = this.#prepareConfig(config);
         let getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
         let setter = ReactiveStorage.#makeSetter(opts.endpoint, key);

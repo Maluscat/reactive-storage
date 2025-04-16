@@ -284,8 +284,8 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    *
    * @returns The current {@link ReactiveStorage} instance for easy chaining.
    */
-  register(key: K, initialValue?: V) {
-    ReactiveStorage.#register(key, initialValue, this.config);
+  register(key: K | K[], initialValue?: V) {
+    ReactiveStorage.#registerGeneric(key, initialValue, this.config);
     return this;
   }
 
@@ -302,11 +302,13 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    * @return The final configuration with default values.
    */
   static register<K extends ObjectKey, V extends any>(
-    key: K,
+    key: K | K[],
     initialValue?: V,
     config: RegistrationOptions<K, V> = {}
   ) {
-    return this.#register(key, initialValue, config);
+    const opts = this.#prepareConfig(config);
+    this.#registerGeneric(key, initialValue, opts);
+    return opts;
   }
 
   /**
@@ -323,20 +325,37 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    * @return The final configuration with default values.
    */
   static registerRecursive<K extends ObjectKey, V extends any>(
-    key: K,
+    key: K | K[],
     initialValue?: V,
     config: RegistrationOptions<K, V> = {}
   ) {
-    return this.#register(key, initialValue, config, true);
+    const opts = this.#prepareConfig(config);
+    this.#registerGeneric(key, initialValue, opts, true);
+    return opts;
   }
 
 
   // ---- Static helpers ----
+  static #registerGeneric<K extends ObjectKey, V extends any>(
+    key: K | K[],
+    initialValue: V,
+    opts: RegistrationOptionsWhole<K, V>,
+    recursive = false
+  ) {
+    if (Array.isArray(key)) {
+      for (const singleKey of key) {
+        this.#register(singleKey, initialValue, opts, recursive);
+      }
+    } else {
+      this.#register(key, initialValue, opts, recursive);
+    }
+  }
+
   static #register<K extends ObjectKey, V extends any>(
     key: K,
-    initialValue?: V,
-    config: RegistrationOptions<K, V> = {},
-    recursive = false,
+    initialValue: V,
+    config: RegistrationOptions<K, V>,
+    recursive: boolean,
     path: ObjectKey[] = [key]
   ) {
     const opts = this.#prepareConfig(config);
