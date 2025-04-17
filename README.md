@@ -7,25 +7,25 @@ need for
 ```js
 const storage = new ReactiveStorage({
   depth: Infinity,
-  getter: ({ path }) => { console.log(`GET ${path.join('.')}`) },
   setter: ({ val, path }) => { console.log(`SET ${path.join('.')}:`, val) }
 });
-storage.register('foo', {
-  bar: 3,
-  baz: [ 'a', 'b', 'c' ]
-});
+storage.register('foo');
 
-// <Logs from initial assignments...>
+storage.data.foo = {
+  bar: 3,
+  baz: [ 'a', 'b' ]
+};
+// SET foo: { ... }
+// SET foo.bar: 3
+// SET foo.baz: [ ... ]
+// SET foo.baz.0: "a"
+// SET foo.baz.1: "a"
 
 storage.data.foo.bar++;
-// GET foo
-// GET foo.bar
 // SET foo.bar: 4
 
 storage.data.foo.baz[1] = 'lor';
-// GET foo
-// GET foo.baz
-// SET foo.baz.1: lor
+// SET foo.baz.1: "lor"
 ```
 
 
@@ -147,18 +147,17 @@ object literals to avoid infinite recursion and unwanted overhead
 
 ### Instanced vs. static approach
 There are two ways to use this library: Using a `ReactiveStorage` instance or
-using static methods, the latter of which are very straightforward and shown below.
+using static methods.
 
 An instance always holds a single immutable configuration which is passed in the
-constructor and used every time a property is registered. This makes an instance
-a convenient way to register and keep track of multiple properties with the same
-configuration.
+constructor and used every time a property is registered. The static methods
+take the configuration on a per-registration basis as an additional argument.
 
 A shallow copy of the used configuration with default values is stored in the
 `config` instance property which can be used to access several implicit values,
-such as the target of all depth levels (although this should rarely be needed!).
-The topmost target and endpoint are additionally exposed via the `data` and
-`endpoint` properties respectively for convenience.
+such as the target if not explicitly passed. The target and endpoint are
+additionally exposed via the `data` and `endpoint` properties respectively for
+convenience.
 
 ```js
 import { ReactiveStorage, Filter } from './ReactiveStorage.js';
@@ -182,7 +181,8 @@ so either the initial value or values assigned at any later point in time, will
 be recursively traversed and registered until the given depth as long as it
 matches the `depthFilter` (only object literals and arrays by default).
 
-The *instance method* uses the instance's configuration and returns itself to
+#### Instance
+The instance method uses the instance's configuration and returns itself, to
 allow for chaining.
 ```ts
 register(
@@ -191,8 +191,9 @@ register(
 ): ReactiveStorage
 ```
 
-The *static method* optionally takes the registration configuration and returns
-a deep copy of the final configuration with default and implicit values.
+#### Static
+The static method optionally takes a configuration and returns a shallow copy of
+the final configuration with default and implicit values.
 ```ts
 register(
   key: number | string | symbol,
@@ -201,8 +202,8 @@ register(
 ): TODO
 ```
 
-`registerRecursive(...)` is a static helper function that extends `register`
-with infinitely deep recursion.
+`registerRecursive(...)` is a helper function that extends `register` with
+infinitely deep recursion (same as `depth: Infinity` in the deepest `depth`).
 ```ts
 registerRecursive(
   key: number | string | symbol,
@@ -211,16 +212,56 @@ registerRecursive(
 ): TODO
 ```
 
+### Configuring deep values
+The `depth` config option accepts either a number or a configuration. If given a
+*number*, this will be the max depth until which assigned values will be made
+reactive. In this case, each layer's configuration will be inherited from the
+parent configuration, with the exception of the `target` and `endpoint` options.
+
+A given *configuration* will define the options for that specific layer, which
+is useful to specify individual getters/setters for each layer of depth. Missing
+options will be inherited from its parent as described above. This setup can be
+nested infinitely deep. To mitigate needing to do this extensively, you can also
+make use of the getter/setter `path` argument (specifically, its length). [TODO link]
+
+In this example, we define three explicit reactivity layers, each of which
+defining an individual setter while inheriting the topmost getter. Layer 2
+defines one additional implicit layer that will inherit its setter. Any layers
+below that won't be reactive. Note how the `path` argument of the first two
+setters always has the same length since they are not inherited downwards:
+```ts
+const storage = new ReactiveStorage({
+  depth: {
+    depth: {
+      setter: ({ val, path }) => { console.log(`Layer 2 or 3 SET ${path.join('.')}:`, val) },
+      depth: 1
+    }
+    setter: ({ val, path }) => { console.log(`Layer 1 SET ${path.join('.')}:`, val) },
+  },
+  setter: ({ val, path }) => { console.log(`Layer 0 SET ${path.join('.')}:`, val) },
+  getter: ({ val, path }) => { console.log(`GET ${path.join('.')}:`, val) },
+});
+
+storage.register('foo', { bar: 3 });
+// Layer 0 SET foo: { bar: 3 }
+// Layer 1 SET foo.bar: 3
+
+storage.data.foo = { bar: { baz: { lor: { val: 9 } } } }
+// Layer 0      SET foo: { bar: ... }
+// Layer 1      SET foo.bar: { baz: ... }
+// Layer 2 or 3 SET foo.bar.baz: { lor: ... }
+// Layer 2 or 3 SET foo.bar.baz.lor: { val: 9 }
+/// <Layer 4 is not reactive>
+```
+
 
 ### Initial assignment
 The initial assignment will already call the specified `setter` and
-`postSetter`. This can be filtered using their `initial` parameter.
+`postSetter`. This can be filtered using the callbacks functions' `initial`
+parameter.
 ```js
 const storage = new ReactiveStorage({
   depth: Infinity,
-  getter: ({ path }) => {
-    console.log(`GET ${path.join('.')}`)
-  },
   setter: ({ val, initial, path }) => {
     console.log(`${initial ? 'initial' : ''} SET ${path.join('.')}:`, val)
   },
@@ -279,27 +320,40 @@ storage.data.foo = [ { lor: 69 }, 'bar', 'baz' ];
 ### Intercepting values
 By default, a configured setter is a passive observer, so after being called,
 the passed value will automatically be set to the property's respective
-endpoint. However, when a setter returns `true`, no value will be set. In
-addition to just dropping a value like this, you can also assign a
-modified/custom value instead using the passed default setter [TODO]:
+endpoint. However, a setter may return `true` to prevent the value from being
+set. In addition to just dropping a value like this, a modified/custom value
+can be assigned instead using the passed default setter `set`.
 
+In this example, any value that isn't a number will be discarded, while numbers
+will always be clamped to the range [0, 100]:
 ```ts
 const storage = new ReactiveStorage({
   depth: Infinity,
-  setter: ({ val, path }) => {
-    if (val < 20) return true;
+  setter: ({ val, set }) => {
+    if (typeof val !== 'number') return true;
+    if (val > 100) {
+      set(100);
+      return true;
+    } else if (val < 0) {
+      set(0);
+      return true;
+    }
   },
 });
 storage.register('foo', 40);
-
-storage.data.foo = 6;
 console.log(storage.data.foo) // 40
+
+storage.data.foo = -6;
+console.log(storage.data.foo) // 0
 
 storage.data.foo = 55;
 console.log(storage.data.foo) // 55
+
+storage.data.foo = 'bar'
+console.log(storage.data.foo) // 55
 ```
 
-### `has(...)` and `delete(...)`
+### Instance helper functions
 The `has(...)` instance method returns true if the given property key exists on
 the instance's `data` and has thus been registered, false otherwise.
 ```ts
