@@ -1,7 +1,9 @@
 export type ObjectKey = number | string | symbol;
-export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
-export type Data<K extends ObjectKey, V> = K extends number ? V[] | Record<K, V> : Record<K, V>;
+export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
+export type Data<KV> = {
+  [ Key in keyof KV ]: KV[Key]
+};
 
 /** {@link RegistrationOptions.getter} event argument. */
 export interface GetterData {
@@ -65,8 +67,8 @@ export interface SetterData extends PostSetterData {
   set: (val: any) => void
 }
 
-export type RegistrationOptions<K extends ObjectKey = ObjectKey, V = any> = Partial<RegistrationOptionsWhole<K, V>>
-export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
+export type RegistrationOptions<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = Partial<RegistrationOptionsWhole<KV>>
+export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any>> {
   /**
    * The endpoint that the registered property points to which holds the actual
    * data, so an object that the configured setter and getter will deposit the
@@ -80,7 +82,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
    * Values are deposited at the specified {@link endpoint}.
    * @default {}
    */
-  target: Data<K, V>;
+  target: Data<KV>;
   /**
    * Decide whether to deeply register an object covered by {@link depth}.
    * This is useful to mitigate registering properties within *any* object
@@ -180,7 +182,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
    *
    * @default 0
    */
-  depth?: number | RegistrationOptions<any, any>;
+  depth?: number | RegistrationOptions;
   /**
    * Called *after* a value has been set.
    */
@@ -239,7 +241,7 @@ export const Filter = {
   any: () => true,
 } as const satisfies Record<string, FilterFunction>;
 
-export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
+export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
   /** @see {@link Filter} */
   static readonly Filter = Filter;
 
@@ -258,9 +260,9 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
     return this.config.target;
   }
 
-  readonly config: Readonly<RegistrationOptionsWhole<K, V>>;
+  readonly config;
 
-  constructor(config: RegistrationOptions<K, V> = {}) {
+  constructor(config: RegistrationOptions<KV> = {}) {
     this.config = ReactiveStorage.#prepareConfig(config);
   }
 
@@ -291,8 +293,12 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    * @param initialValue The initial value that will be assigned after registering.
    *
    * @returns The current {@link ReactiveStorage} instance for easy chaining.
+   *
+   * @privateRemarks
+   * There is currently no way to make the generics sound since they cannot be
+   * optional without a default value.
    */
-  register(key: K | K[], initialValue?: V) {
+  register(key: keyof KV | Array<keyof KV>, initialValue?: KV[keyof KV]) {
     ReactiveStorage.#registerGeneric(key, initialValue, this.config);
     return this;
   }
@@ -308,11 +314,19 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    * @param initialValue The initial value that will be assigned after registering.
    *
    * @return The final configuration with default values.
+   *
+   * @privateRemarks
+   * There is currently no way to make the generics sound since they cannot be
+   * optional without a default value.
    */
-  static register<K extends ObjectKey, V extends any>(
+  static register<
+    KV extends Record<K, V>,
+    K extends ObjectKey = keyof KV,
+    V extends any = KV[K]
+  >(
     key: K | K[],
     initialValue?: V,
-    config: RegistrationOptions<K, V> = {}
+    config: RegistrationOptions<KV> = {}
   ) {
     const opts = this.#prepareConfig(config);
     this.#registerGeneric(key, initialValue, opts);
@@ -332,10 +346,14 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    *
    * @return The final configuration with default values.
    */
-  static registerRecursive<K extends ObjectKey, V extends any>(
+  static registerRecursive<
+    KV extends Record<K, V>,
+    K extends ObjectKey = keyof KV,
+    V extends any = KV[K]
+  >(
     key: K | K[],
     initialValue?: V,
-    config: RegistrationOptions<K, V> = {}
+    config: RegistrationOptions<KV> = {}
   ) {
     const opts = this.#prepareConfig(config);
     this.#registerGeneric(key, initialValue, opts, true);
@@ -344,10 +362,14 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
 
 
   // ---- Static helpers ----
-  static #registerGeneric<K extends ObjectKey, V extends any>(
+  static #registerGeneric<
+    KV extends Record<K, V>,
+    K extends ObjectKey = keyof KV,
+    V extends any = KV[K]
+  >(
     key: K | K[],
-    initialValue: V,
-    opts: RegistrationOptionsWhole<K, V>,
+    initialValue?: V,
+    opts: RegistrationOptions<KV> = {},
     recursive = false
   ) {
     if (Array.isArray(key)) {
@@ -359,10 +381,14 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
     }
   }
 
-  static #register<K extends ObjectKey, V extends any>(
+  static #register<
+    KV extends Record<K, V>,
+    K extends ObjectKey = keyof KV,
+    V extends any = KV[K]
+  >(
     key: K,
     initialValue: V,
-    config: RegistrationOptions<K, V>,
+    config: RegistrationOptions<KV>,
     recursive: boolean,
     path: ObjectKey[] = [key]
   ) {
@@ -472,14 +498,14 @@ export class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
    * and return a shallow copy.
    * @internal
    */
-  static #prepareConfig<K extends ObjectKey, V>(
-    config: RegistrationOptions<K, V>
+  static #prepareConfig<KV extends Record<ObjectKey, any>>(
+    config: RegistrationOptions<KV>
   ) {
     config.depthFilter ||= Filter.objectLiteralOrArray;
-    config.target ||= {} as Data<K, V>;
+    config.target ||= {} as Data<KV>;
     config.endpoint ||= {} as Endpoint;
     config.depth ??= 0;
     config.enumerable ??= true;
-    return Object.assign({}, config) as RegistrationOptionsWhole<K, V>;
+    return Object.assign({}, config) as RegistrationOptionsWhole<KV>;
   }
 }
