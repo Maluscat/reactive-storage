@@ -175,6 +175,27 @@ describe('Setter', () => {
         c.target.foo = 420;
         assert.equal(c.target.foo, 20);
       })
+      it('Initial value should be fenced as well', () => {
+        const c = ReactiveStorage.register('foo', 6, {
+          setter: ({ val, set }) => {
+            if (val > 0) {
+              set('lor');
+              return true;
+            }
+          }
+        });
+        assert.equal(c.target.foo, 'lor');
+        assert.equal(c.endpoint.foo, 'lor');
+
+        c.target.foo = 3;
+        assert.equal(c.target.foo, 'lor');
+
+        c.target.foo = -6;
+        assert.equal(c.target.foo, -6);
+
+        c.target.foo += 7;
+        assert.equal(c.target.foo, 'lor');
+      })
     });
   });
 })

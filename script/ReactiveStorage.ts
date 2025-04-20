@@ -432,12 +432,8 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
       depthOpts.depthFilter ??= config.depthFilter;
     }
 
-    // TODO: This should probably be fenced by `customSetter` as well!
-    // Populate endpoint
-    setter(initialValue);
-
     Object.defineProperty(target, key, {
-      configurable: true, // TODO decide?
+      configurable: true,
       enumerable: config.enumerable ?? true,
       get: () => {
         return customGetter?.({ val: getter(), path }) ?? getter();
