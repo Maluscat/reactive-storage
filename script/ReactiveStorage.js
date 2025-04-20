@@ -32,18 +32,18 @@ export class ReactiveStorage {
      * Access point for registered properties.
      * @see {@link RegistrationOptions.target}
      */
-    get data() {
+    get target() {
         return this.config.target;
     }
     config;
     constructor(config = {}) {
         this.config = ReactiveStorage.#prepareConfig(config);
     }
-    /** Check for existence of a registered property on {@link data}. */
+    /** Check for existence of a registered property on {@link target}. */
     has(key) {
-        return Object.prototype.hasOwnProperty.call(this.data, key);
+        return Object.prototype.hasOwnProperty.call(this.target, key);
     }
-    /** Delete {@link data} and {@link endpoint} entry of a registered property. */
+    /** Delete {@link target} and {@link endpoint} entry of a registered property. */
     delete(key) {
         if (this.has(key)) {
             if (this.endpoint instanceof Map) {
@@ -53,19 +53,23 @@ export class ReactiveStorage {
                 delete this.endpoint[key];
             }
             // @ts-ignore Checked for property existence above
-            delete this.data[key];
+            delete this.target[key];
             return true;
         }
         return false;
     }
     /**
-     * Register a reactive property on {@link data} that points to
+     * Register a reactive property on {@link target} that points to
      * {@link endpoint}.
      *
-     * @param key The property name to register on {@link data}.
+     * @param key The property name to register on {@link target}.
      * @param initialValue The initial value that will be assigned after registering.
      *
      * @returns The current {@link ReactiveStorage} instance for easy chaining.
+     *
+     * @privateRemarks
+     * There is currently no way to make the generics sound since they cannot be
+     * optional without a default value.
      */
     register(key, initialValue) {
         ReactiveStorage.#registerGeneric(key, initialValue, this.config);
@@ -81,11 +85,13 @@ export class ReactiveStorage {
      * @param initialValue The initial value that will be assigned after registering.
      *
      * @return The final configuration with default values.
+     *
+     * @privateRemarks
+     * There is currently no way to make the generics sound since they cannot be
+     * optional without a default value.
      */
     static register(key, initialValue, config = {}) {
-        const opts = this.#prepareConfig(config);
-        this.#registerGeneric(key, initialValue, opts);
-        return opts;
+        return this.#registerGeneric(key, initialValue, config);
     }
     /**
      * Register a reactive property on a target recursively deep by traversing
@@ -101,12 +107,11 @@ export class ReactiveStorage {
      * @return The final configuration with default values.
      */
     static registerRecursive(key, initialValue, config = {}) {
-        const opts = this.#prepareConfig(config);
-        this.#registerGeneric(key, initialValue, opts, true);
-        return opts;
+        return this.#registerGeneric(key, initialValue, config, true);
     }
     // ---- Static helpers ----
-    static #registerGeneric(key, initialValue, opts, recursive = false) {
+    static #registerGeneric(key, initialValue, config = {}, recursive = false) {
+        const opts = this.#prepareConfig(config);
         if (Array.isArray(key)) {
             for (const singleKey of key) {
                 this.#register(singleKey, initialValue, opts, recursive);
@@ -115,43 +120,49 @@ export class ReactiveStorage {
         else {
             this.#register(key, initialValue, opts, recursive);
         }
+        return {
+            target: opts.target,
+            endpoint: opts.endpoint,
+        };
     }
     static #register(key, initialValue, config, recursive, path = [key]) {
-        const opts = this.#prepareConfig(config);
-        let getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
-        let setter = ReactiveStorage.#makeSetter(opts.endpoint, key);
+        const target = config.target ?? {};
+        const endpoint = config.endpoint ?? {};
+        const depthFilter = config.depthFilter ?? Filter.objectLiteralOrArray;
+        const customGetter = config.getter;
+        const customSetter = config.setter;
+        const customPostSetter = config.postSetter;
+        let getter = ReactiveStorage.#makeGetter(endpoint, key);
+        let setter = ReactiveStorage.#makeSetter(endpoint, key);
         let hasCustomDepthEndpoint = false;
         let initial = true;
-        const customGetter = opts.getter;
-        const customSetter = opts.setter;
-        const customPostSetter = opts.postSetter;
         let depthOpts;
-        if (opts.depth || recursive) {
-            if (typeof opts.depth !== 'object') {
+        if (config.depth || recursive) {
+            if (typeof config.depth !== 'object') {
                 depthOpts = {};
                 if (recursive) {
                     depthOpts.depth = Infinity;
                 }
-                else if (typeof opts.depth === 'number') {
-                    depthOpts.depth = opts.depth - 1;
+                else if (typeof config.depth === 'number') {
+                    depthOpts.depth = config.depth - 1;
                 }
             }
             else {
-                depthOpts = Object.assign({}, opts.depth);
+                depthOpts = Object.assign({}, config.depth);
             }
             hasCustomDepthEndpoint = !!depthOpts.depth;
-            depthOpts.setter ??= opts.setter;
-            depthOpts.getter ??= opts.getter;
-            depthOpts.postSetter ??= opts.postSetter;
-            depthOpts.enumerable ??= opts.enumerable;
-            depthOpts.depthFilter ??= opts.depthFilter;
+            depthOpts.setter ??= config.setter;
+            depthOpts.getter ??= config.getter;
+            depthOpts.postSetter ??= config.postSetter;
+            depthOpts.enumerable ??= config.enumerable;
+            depthOpts.depthFilter ??= config.depthFilter;
         }
         // TODO: This should probably be fenced by `customSetter` as well!
         // Populate endpoint
         setter(initialValue);
-        Object.defineProperty(opts.target, key, {
+        Object.defineProperty(target, key, {
             configurable: true, // TODO decide?
-            enumerable: opts.enumerable ?? true,
+            enumerable: config.enumerable ?? true,
             get: () => {
                 return customGetter?.({ val: getter(), path }) ?? getter();
             },
@@ -160,7 +171,7 @@ export class ReactiveStorage {
                 if (!customSetter?.({ val, prevVal, initial, path, set: setter })) {
                     setter(val);
                 }
-                if (!!depthOpts && typeof val === 'object' && opts.depthFilter?.(val, path)) {
+                if (!!depthOpts && typeof val === 'object' && depthFilter(val, path)) {
                     if (!hasCustomDepthEndpoint) {
                         // Instead of creating a new endpoint for every depth, use the objects
                         // from the existing endpoint hierarchy. For example for `foo: { bar: 1 }`
@@ -178,17 +189,16 @@ export class ReactiveStorage {
                     getter = () => depthOpts.target;
                 }
                 else {
-                    getter = ReactiveStorage.#makeGetter(opts.endpoint, key);
+                    getter = ReactiveStorage.#makeGetter(endpoint, key);
                 }
                 customPostSetter?.({ val, prevVal, initial, path });
             },
         });
         if (initialValue !== undefined) {
             // @ts-ignore ???
-            opts.target[key] = initialValue;
+            target[key] = initialValue;
         }
         initial = false;
-        return opts;
     }
     /**
      * Return a function that gets the given key from the given endpoint.
@@ -216,16 +226,14 @@ export class ReactiveStorage {
         }
     }
     /**
-     * Add default values to specific fields of a config if unspecified
+     * Add a default target and endpoint of a config if unspecified
      * and return a shallow copy.
      * @internal
      */
     static #prepareConfig(config) {
-        config.depthFilter ||= Filter.objectLiteralOrArray;
-        config.target ||= {};
-        config.endpoint ||= {};
-        config.depth ??= 0;
-        config.enumerable ??= true;
-        return Object.assign({}, config);
+        return Object.assign({
+            target: {},
+            endpoint: {},
+        }, config);
     }
 }

@@ -1,7 +1,10 @@
 export type ObjectKey = number | string | symbol;
-export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
-export type Data<K extends ObjectKey, V> = K extends number ? V[] | Record<K, V> : Record<K, V>;
+export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
+export type Data<KV> = {
+    [Key in keyof KV]: KV[Key];
+};
+export type RegistrationData<KV extends Record<ObjectKey, any>> = Pick<RegistrationOptionsWhole<KV>, 'target' | 'endpoint'>;
 /** {@link RegistrationOptions.getter} event argument. */
 export interface GetterData {
     /** Value to be set. */
@@ -63,8 +66,10 @@ export interface SetterData extends PostSetterData {
      */
     set: (val: any) => void;
 }
-export type RegistrationOptions<K extends ObjectKey = ObjectKey, V = any> = Partial<RegistrationOptionsWhole<K, V>>;
-export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
+export type RegistrationOptions<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
+    [Prop in keyof RegistrationOptionsWhole<KV>]?: Prop extends 'depth' ? number | RegistrationOptions<KV> : RegistrationOptionsWhole<KV>[Prop];
+};
+export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
     /**
      * The endpoint that the registered property points to which holds the actual
      * data, so an object that the configured setter and getter will deposit the
@@ -78,7 +83,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      * Values are deposited at the specified {@link endpoint}.
      * @default {}
      */
-    target: Data<K, V>;
+    target: Data<KV>;
     /**
      * Decide whether to deeply register an object covered by {@link depth}.
      * This is useful to mitigate registering properties within *any* object
@@ -111,7 +116,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      *
      * @default {@link Filter.objectLiteralOrArray}
      */
-    depthFilter: FilterFunction;
+    depthFilter?: FilterFunction;
     /**
      * Whether the value should be enumerable inside {@link target}.
      * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -178,7 +183,7 @@ export interface RegistrationOptionsWhole<K extends ObjectKey, V> {
      *
      * @default 0
      */
-    depth?: number | RegistrationOptions<any, any>;
+    depth?: number | Omit<RegistrationOptionsWhole, 'target'>;
     /**
      * Called *after* a value has been set.
      */
@@ -229,7 +234,7 @@ export declare const Filter: {
     /** Matches everything (always returns true). */
     readonly any: () => true;
 };
-export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
+export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> {
     #private;
     /** @see {@link Filter} */
     static readonly Filter: {
@@ -247,23 +252,27 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      * Access point for registered properties.
      * @see {@link RegistrationOptions.target}
      */
-    get data(): Data<K, V>;
-    readonly config: Readonly<RegistrationOptionsWhole<K, V>>;
-    constructor(config?: RegistrationOptions<K, V>);
-    /** Check for existence of a registered property on {@link data}. */
+    get target(): Data<KV>;
+    readonly config: RegistrationOptionsWhole<KV>;
+    constructor(config?: RegistrationOptions<KV>);
+    /** Check for existence of a registered property on {@link target}. */
     has(key: ObjectKey): boolean;
-    /** Delete {@link data} and {@link endpoint} entry of a registered property. */
+    /** Delete {@link target} and {@link endpoint} entry of a registered property. */
     delete(key: ObjectKey): boolean;
     /**
-     * Register a reactive property on {@link data} that points to
+     * Register a reactive property on {@link target} that points to
      * {@link endpoint}.
      *
-     * @param key The property name to register on {@link data}.
+     * @param key The property name to register on {@link target}.
      * @param initialValue The initial value that will be assigned after registering.
      *
      * @returns The current {@link ReactiveStorage} instance for easy chaining.
+     *
+     * @privateRemarks
+     * There is currently no way to make the generics sound since they cannot be
+     * optional without a default value.
      */
-    register(key: K | K[], initialValue?: V): this;
+    register(key: keyof KV | Array<keyof KV>, initialValue?: KV[keyof KV]): this;
     /**
      * Register a reactive property on a target that points to an endpoint.
      * If left unspecified, target and/or endpoint will be a new object that can
@@ -273,8 +282,12 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      * @param initialValue The initial value that will be assigned after registering.
      *
      * @return The final configuration with default values.
+     *
+     * @privateRemarks
+     * There is currently no way to make the generics sound since they cannot be
+     * optional without a default value.
      */
-    static register<K extends ObjectKey, V extends any>(key: K | K[], initialValue?: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
+    static register<KV extends Record<K, V>, K extends ObjectKey = keyof KV, V extends any = KV[K]>(key: K | K[], initialValue?: V, config?: RegistrationOptions<KV>): RegistrationData<KV>;
     /**
      * Register a reactive property on a target recursively deep by traversing
      * its initial value and registering all properties within any found array or
@@ -288,5 +301,5 @@ export declare class ReactiveStorage<K extends ObjectKey = ObjectKey, V = any> {
      *
      * @return The final configuration with default values.
      */
-    static registerRecursive<K extends ObjectKey, V extends any>(key: K | K[], initialValue?: V, config?: RegistrationOptions<K, V>): RegistrationOptionsWhole<K, V>;
+    static registerRecursive<KV extends Record<K, V>, K extends ObjectKey = keyof KV, V extends any = KV[K]>(key: K | K[], initialValue?: V, config?: RegistrationOptions<KV>): RegistrationData<KV>;
 }

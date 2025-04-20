@@ -193,15 +193,15 @@ describe('Configuration', () => {
     });
     it('enumerable', () => {
       const { config } = create();
-      assert.isTrue(config.enumerable);
+      assert.isUndefined(config.enumerable);
     });
     it('depthFilter', () => {
       const { config } = create();
-      assert.equal(config.depthFilter, ReactiveStorage.Filter.objectLiteralOrArray);
+      assert.isUndefined(config.depthFilter);
     });
     it('depth', () => {
       const { config } = create();
-      assert.equal(config.depth, 0);
+      assert.isUndefined(config.depth);
     });
     it('setter', () => {
       const { config } = create();
