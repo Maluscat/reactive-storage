@@ -263,7 +263,8 @@ describe('Endpoint', () => {
     c.target.foo.bar = 4;
     assert.equal(c.target.foo.bar, c.endpoint.foo.bar);
 
-    c.endpoint.foo.bar = 5;
+    c.endpoint.foo.bar = { lor: 40 };
     assert.equal(c.target.foo.bar, c.endpoint.foo.bar);
+    assert.equal(c.target.foo.bar.lor, c.endpoint.foo.bar.lor);
   });
 });

@@ -150,7 +150,7 @@ export class ReactiveStorage {
             else {
                 depthOpts = Object.assign({}, config.depth);
             }
-            hasCustomDepthEndpoint = !!depthOpts.depth;
+            hasCustomDepthEndpoint = !!depthOpts.endpoint;
             depthOpts.setter ??= config.setter;
             depthOpts.getter ??= config.getter;
             depthOpts.postSetter ??= config.postSetter;
@@ -170,11 +170,8 @@ export class ReactiveStorage {
                 }
                 if (!!depthOpts && typeof val === 'object' && depthFilter(val, path)) {
                     if (!hasCustomDepthEndpoint) {
-                        // Instead of creating a new endpoint for every depth, use the objects
-                        // from the existing endpoint hierarchy. For example for `foo: { bar: 1 }`
-                        // SET foo -> endpoint `foo: { bar: 1 }`
-                        // SET bar -> endpoint `bar: 1` (same object { bar: 1 } within the endpoint above)
-                        // TODO check this
+                        // For the endpoint, use the object of the desired depth within the
+                        // existing endpoint hierarchy instead of creating a new object.
                         depthOpts.endpoint = getter();
                     }
                     // We don't need to save the deep target anywhere
