@@ -93,6 +93,32 @@ describe('Register', () => {
   });
 });
 
+describe('Return values', () => {
+  it('static register(...)', () => {
+    const target = {};
+    const endpoint = {};
+    const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
+    assert.hasAllKeys(c, [ 'target', 'endpoint' ]);
+    assert.equal(c.target, target);
+    assert.equal(c.endpoint, endpoint);
+  });
+  it('static registerRecursive(...)', () => {
+    const target = {};
+    const endpoint = {};
+    const c = ReactiveStorage.registerRecursive([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
+    assert.hasAllKeys(c, [ 'target', 'endpoint' ]);
+    assert.equal(c.target, target);
+    assert.equal(c.endpoint, endpoint);
+  });
+  it('instance register(...)', () => {
+    const target = {};
+    const endpoint = {};
+    const s = create({ target, endpoint });
+    const c = s.register('foo');
+    assert.equal(c, s);
+  });
+});
+
 describe('Setter', () => {
   describe('Should not be called with an initial value of `undefined`', () => {
     it('Instance', () => {
