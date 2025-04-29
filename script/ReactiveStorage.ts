@@ -10,10 +10,10 @@ export type RegistrationData<KV extends Record<ObjectKey, any>> =
 
 /** {@link RegistrationOptions.getter} event argument. */
 export interface GetterData {
-  /** Value to be set. */
+  /** Value that was fetched, from the underlying endpoint. */
   val: any;
   /**
-   * Key path of the value in question, starting with the registered key.
+   * Key path of the property in question, starting with the registered key.
    *
    * @example
    * ```js
@@ -41,7 +41,7 @@ export interface PostSetterData {
   /** Previous value. */
   prevVal: any;
   /**
-   * Key path of the value in question, starting with the registered key.
+   * Key path of the property in question, starting with the registered key.
    *
    * @example
    * ```js
@@ -94,8 +94,8 @@ export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Re
   /**
    * Decide whether to deeply register an object covered by {@link depth}.
    * This is useful to mitigate registering properties within *any* object
-   * (class instances, DOM nodes, etc.) in favor of, for example, only object
-   * literals or arrays – especially when making use of an infinite depth.
+   * (class instances, DOM nodes, etc.) in favor of simpler objects –
+   * especially when making use of an infinite depth.
    *
    * Be careful when changing this, especially when there is user input
    * involved! Unrestricted recursion may lead to a significant overload
@@ -125,7 +125,7 @@ export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Re
    */
   depthFilter?: FilterFunction;
   /**
-   * Whether the value should be enumerable inside {@link target}.
+   * Whether registered properties should be enumerable inside {@link target}.
    * Corresponds to {@link PropertyDescriptor.enumerable}.
    * @default true
    */
