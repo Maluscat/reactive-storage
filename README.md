@@ -139,11 +139,13 @@ import { ReactiveStorage, Filter, ReactiveStorageError } from '@maluscat/reactiv
 See the [docs](#docs) for an overview of all additional typing related exports
 for use in TypeScript.
 
-ReactiveStorage can make objects deeply reactive such that any change within
-arbitrarily deeply nested properties can be caught and intercepted. *Any* object
-can be registered – though by default this is only the case for arrays and
-object literals to avoid infinite recursion and unwanted overhead
-(can be controlled with the `depthFilter` [config](#configuration) option).
+ReactiveStorage can make properties reactive such that they invoke callbacks
+whenever they are accessed or assigned to. In addition, object values can be
+made deeply reactive – This allows any change within arbitrarily deeply nested
+properties to be caught and intercepted. *Any* object can be deeply registered,
+though by default only arrays and object literals will propagate to avoid
+infinite recursion and unwanted overhead (can be controlled with the
+[`depthFilter`](#depthfilter) config option).
 
 ### Instanced vs. static approach
 There are two ways to use this library: Using a `ReactiveStorage` instance or
@@ -154,11 +156,9 @@ which is passed in the constructor and used every time a property is registered.
 The static methods take the configuration on a per-registration basis as an
 additional argument.
 
-A shallow copy of the used configuration with default values is stored in the
-`config` instance property which can be used to access several implicit values,
-such as the target if not explicitly passed. The target and endpoint are
-additionally exposed via the `target` and `endpoint` properties respectively for
-convenience.
+The used configuration is stored in the `config` instance property. The target
+and endpoint are additionally exposed via the `target` and `endpoint` properties
+respectively.
 
 ```js
 import { ReactiveStorage, Filter } from './ReactiveStorage.js';
@@ -194,13 +194,13 @@ register(
 
 #### Static
 The static method optionally takes a [configuration](#configuration) and returns
-a shallow copy of the final configuration with default and implicit values.
+the used target and endpoint.
 ```ts
 register(
   key: number | string | symbol,
   initialValue?: any,
   options: RegistrationOptions = {}
-): TODO
+): { target: object, endpoint: object }
 ```
 
 `registerRecursive(...)` is a helper function that extends `register` with
@@ -210,14 +210,15 @@ registerRecursive(
   key: number | string | symbol,
   initialValue?: any,
   options?: RegistrationOptions = {}
-): TODO
+): { target: object, endpoint: object }
 ```
 
 ### Configuring deep values
-The `depth` config option accepts either a number or a configuration. If given a
-*number*, this will be the max depth until which assigned values will be made
-reactive. In this case, a layer's configuration will be inherited from the
-parent config, with the exception of the `target` and `endpoint` options.
+To register a property deeply, you can use the `depth` config option which
+accepts either a number or a configuration. If given a *number*, this will be
+the max depth until which assigned values will be made reactive. In this case, a
+layer's configuration will be inherited from the parent config, with the
+exception of the `target` and `endpoint` options.
 
 A given *configuration* will define options for that specific layer, which is
 useful to specify individual getters/setters for each layer of depth. The
@@ -225,13 +226,13 @@ useful to specify individual getters/setters for each layer of depth. The
 assignment while other missing options except `endpoint` will be inherited from
 its parent. This setup can be nested infinitely deep. To mitigate needing to do
 this extensively, you can also make use of the getter/setter `path` argument
-(specifically, its length). [TODO link]
+(specifically, its length).
 
 In this example, three explicit reactivity layers are defined, each of which
 defining an individual setter while inheriting the topmost getter. Layer 2
-defines one additional implicit layer that will inherit its setter. Any layers
-below that won't be reactive. Note how the `path` argument of the first two
-setters always has the same length since they are not inherited downwards:
+defines one additional implicit layer. Any layers below that won't be reactive.
+Note how the `path` argument of the first two setters always has the same length
+since they are not inherited downwards:
 ```ts
 const storage = new ReactiveStorage({
   depth: {
@@ -386,8 +387,36 @@ to them. As such, they will be garbage collected instead.
 delete(key: number | string | symbol): boolean
 ```
 
-### About types
+### Using with types
+Since TypeScript is an entirely static language, there is no way to propagate
+type information from an instance method to an instance property. This is why,
+without additional information, only the `target`/`targets` returned by the two
+static methods `ReactiveStorage.register(...)` and
+`ReactiveStorage.registerRecursive(...)` knows about the registered properties.
 
+To supply additional type information, a property-value interface can be passed
+as a generic to the `ReactiveStorage` class or the static methods mentioned
+above. This is the best I can do since Typescript generics are quite limited
+(I'd be happy to be convinced of the contrary!).
+
+```ts
+interface Properties {
+  foo: number
+  bar: string[]
+  baz: Array<number> | number
+}
+
+const storage = new ReactiveStorage<Properties>();
+storage.register('lor');     // ERROR: Not a known property!
+storage.register('bar', {}); // ERROR: Type for 'bar' does not match!
+storage.register('foo', 4);
+
+// `storage.target` is typed to contain the properties
+// 'foo', 'bar', 'baz' and their respective types
+
+// Analogously:
+ReactiveStorage.register<Properties>('foo', 4);
+```
 
 
 ## Configuration
@@ -397,6 +426,7 @@ available at the [docs](#docs) (along with more examples). All fields are
 optional.
 
 ### `target`
+- Type: `object`
 - Default: `{}`
 
 The access point for the registered property/properties. Values are deposited at
@@ -407,6 +437,7 @@ This property may only be defined in the topmost level of a configuration and
 not within [`depth`](#depth) since these change on each assignment.
 
 ### `endpoint`
+- Type: `object`
 - Default: `{}`
 
 The object that holds the actual data of registered properties.
@@ -419,6 +450,7 @@ while the setters/getters on the target do some extra work when accessed by a
 user.
 
 ### `enumerable`
+- Type: `boolean`
 - Default: `true`
 
 Whether registered properties should be enumerable inside the [target](#target).
@@ -427,8 +459,9 @@ Corresponds to the
 of the same name.
 
 ### `depth`
-- Default: `0`
 - See also [Configuring deep values](#configuring-deep-values)
+- Type: `Configuration | number`
+- Default: `0`
 
 Whether and how keys inside object values should be registered such that they go
 through additional layers of getters and setters. If a value is reassigned, it
@@ -441,6 +474,7 @@ in its layer. Can be nested infinitely deep.
 depth, inheriting the parent options. Can be `Infinity`.
 
 ### `depthFilter`
+- Type: `(obj: object, path: Array<string | symbol>) => boolean`
 - Default: `Filter.objectLiteralOrArray`
 
 Decide whether to deeply register an object covered by [`depth`](#depth).
@@ -452,9 +486,11 @@ Unrestricted recursion may lead to a significant overload or even an infinite
 loop when (accidentally) assigning complex objects like a DOM node.
 
 ### `postSetter`
+- Type: `(event: PostSetterEvent) => void`
+
 Called *after* a value has been set.
 
-Its only argument is an event object with the following properties:
+The passed event object has the following properties:
 - `val`: The value that was set
 - `prevVal`: The previous value
 - `initial` (`boolean`): Whether this call is propagated by the initial
@@ -463,11 +499,12 @@ Its only argument is an event object with the following properties:
 
 ### `setter`
 - See also [Intercepting values](#intercepting-values)
+- Type: `(event: SetterEvent) => void | boolean`
 
 Called *before* a value is set. Return `true` to discard the value, i.e. to stop
 the default action of setting the value to the underlying endpoint.
 
-Its only argument is an event object with the following properties:
+The passed event object has the following properties:
 - `val`: The value that will be set (unless discarded)
 - `prevVal`: The previous value
 - `initial` (`boolean`): Whether this call is propagated by the initial
@@ -479,6 +516,7 @@ Its only argument is an event object with the following properties:
 
 ### `getter`
 - See also [Intercepting values](#intercepting-values)
+- Type: `(event: GetterEvent) => void | any`
 
 Called anytime a value is fetched. Return `null` or `undefined` to propagate the
 default value. Any other return value will be the property's value.
@@ -487,7 +525,7 @@ As inferred in [Concepts](#concepts), deep properties require a lot of `getter`
 calls, so when using depth extensively, you should probably keep inherited
 getter functions lightweight.
 
-Its only argument is an event object with the following properties:
+The passed event object has the following properties:
 - `val`: The value from the underlying endpoint
 - `path` (`Array<string | symbol>`): Key path of the property that was set
 
