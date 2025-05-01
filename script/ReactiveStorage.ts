@@ -9,7 +9,7 @@ export type RegistrationData<KV extends Record<ObjectKey, any>> =
   Pick<RegistrationOptionsWhole<KV>, 'target' | 'endpoint'>;
 
 /** {@link RegistrationOptions.getter} event argument. */
-export interface GetterData {
+export interface GetterEvent {
   /** Value that was fetched, from the underlying endpoint. */
   val: any;
   /**
@@ -33,7 +33,7 @@ export interface GetterData {
   path: ObjectKey[];
 }
 /** {@link RegistrationOptions.postSetter} event argument. */
-export interface PostSetterData {
+export interface PostSetterEvent {
   /** Value that was set. */
   val: any;
   /** Whether this call is propagated by the initial registration action. */
@@ -59,7 +59,7 @@ export interface PostSetterData {
   path: ObjectKey[];
 }
 /** {@link RegistrationOptions.setter} event argument. */
-export interface SetterData extends PostSetterData {
+export interface SetterEvent extends PostSetterEvent {
   /** Value to be set. */
   val: any;
   /**
@@ -194,15 +194,15 @@ export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Re
   /**
    * Called *after* a value has been set.
    */
-  postSetter?: (args: PostSetterData) => void;
+  postSetter?: (event: PostSetterEvent) => void;
   /**
    * Called *before* a value is set.
    *
    * Return `true` to prevent the value from being set to the default endpoint.
    * This can be useful to filter specific values or when setting them manually,
-   * in which case the passed {@link SetterData.set} is useful.
+   * in which case the passed {@link SetterEvent.set} is useful.
    */
-  setter?: (args: SetterData) => void | boolean;
+  setter?: (event: SetterEvent) => void | boolean;
   /**
    * Called anytime a value is fetched.
    *
@@ -224,7 +224,7 @@ export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Re
    * // "GET 8"
    * ```
    */
-  getter?: (args: GetterData) => any;
+  getter?: (event: GetterEvent) => any;
 }
 
 export class ReactiveStorageError extends Error {
@@ -305,7 +305,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
    * There is currently no way to make the generics sound since they cannot be
    * optional without a default value.
    */
-  register(key: keyof KV | Array<keyof KV>, initialValue?: KV[keyof KV]) {
+  register<K extends keyof KV>(key: K | K[], initialValue?: KV[K]) {
     ReactiveStorage.#registerGeneric(key, initialValue, this.config);
     return this;
   }
