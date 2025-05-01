@@ -91,31 +91,142 @@ describe('Register', () => {
       assert.equal(c.target.baz, 420);
     });
   });
+  describe('Return values', () => {
+    describe('Static methods', () => {
+      it('Base: register(...)', () => {
+        const target = {};
+        const endpoint = {};
+        const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
+        assert.hasAllKeys(c, [ 'target', 'targets', 'endpoint' ]);
+        assert.equal(c.target, target);
+        assert.equal(c.targets[0], target);
+        assert.equal(c.endpoint, endpoint);
+      });
+      it('Base: registerRecursive(...)', () => {
+        const target = {};
+        const endpoint = {};
+        const c = ReactiveStorage.registerRecursive([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
+        assert.hasAllKeys(c, [ 'target', 'targets', 'endpoint' ]);
+        assert.equal(c.target, target);
+        assert.equal(c.targets[0], target);
+        assert.equal(c.endpoint, endpoint);
+      });
+      it('register(...) with definition chain', () => {
+        const target0 = {};
+        const target1 = {};
+        const target2 = {};
+        const endpoint = {};
+        const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, [
+          { target: target0 },
+          { target: target1 },
+          { target: target2, endpoint },
+        ]);
+        assert.equal(c.target, target0);
+        assert.lengthOf(c.targets, 3);
+        assert.equal(c.targets[0], c.target);
+        assert.equal(c.targets[1], target1);
+        assert.equal(c.targets[2], target2);
+      });
+    });
+    describe('Instance', () => {
+      it('register(...)', () => {
+        const target = {};
+        const endpoint = {};
+        const s = create({ target, endpoint });
+        const c = s.register('foo');
+        assert.equal(c, s);
+      });
+    });
+  });
 });
 
-describe('Return values', () => {
-  it('static register(...)', () => {
-    const target = {};
-    const endpoint = {};
-    const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
-    assert.hasAllKeys(c, [ 'target', 'endpoint' ]);
-    assert.equal(c.target, target);
-    assert.equal(c.endpoint, endpoint);
+describe('Constructor', () => {
+  it('Default `endpoint` and `target` if not passed', () => {
+    const s = create();
+    assert.deepEqual(s.target, {}, "Target");
+    assert.deepEqual(s.endpoint, {}, "Endpoint");
   });
-  it('static registerRecursive(...)', () => {
-    const target = {};
-    const endpoint = {};
-    const c = ReactiveStorage.registerRecursive([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
-    assert.hasAllKeys(c, [ 'target', 'endpoint' ]);
-    assert.equal(c.target, target);
-    assert.equal(c.endpoint, endpoint);
-  });
-  it('instance register(...)', () => {
-    const target = {};
-    const endpoint = {};
+  it('Store `endpoint` and `target` as instance properties', () => {
+    const endpoint = [];
+    const target = [];
     const s = create({ target, endpoint });
-    const c = s.register('foo');
-    assert.equal(c, s);
+    assert.equal(s.endpoint, endpoint);
+    assert.equal(s.target, target);
+  });
+  it('Instance `target` and `endpoint` point to config', () => {
+    const s = create();
+    assert.equal(s.target, s.config[0].target);
+    assert.equal(s.endpoint, s.config.at(-1).endpoint);
+  });
+  describe('Config', () => {
+    it('Store a shallow copy of a passed config as instance property', () => {
+      const config = {
+        endpoint: [],
+        target: [],
+      }
+      const s = create(config);
+      assert.isArray(s.config);
+      assert.deepEqual(s.config, [ config ]);
+      assert.equal(s.target, config.target);
+      assert.equal(s.endpoint, config.endpoint);
+    });
+    it('Store a shallow copy of a passed definiton chain as instance property', () => {
+      const config0 = {
+        endpoint: [],
+        target: [],
+      };
+      const config1 = {
+        endpoint: {}
+      };
+      const config2 = {
+        endpoint: {}
+      };
+      const s = create([ config0, config1, config2 ]);
+      assert.lengthOf(s.config, 3);
+      assert.deepEqual(s.config[0], config0);
+      assert.hasAllKeys(s.config[0], [ 'endpoint', 'target' ]);
+      assert.hasAllKeys(s.config[1], [ 'endpoint', 'target' ]);
+      assert.hasAllKeys(s.config[2], [ 'endpoint', 'target' ]);
+    });
+  });
+});
+
+describe('Definition chains', () => {
+  it('Correct default chaining', () => {
+    const s = create([ {}, {}, {} ]);
+    assert.equal(s.config[0].endpoint, s.config[1].target);
+    assert.equal(s.config[1].endpoint, s.config[2].target);
+  });
+  it('Correct chaining with passed values', () => {
+    const target0 = [];
+    const target1 = [];
+    const target2 = [];
+    const endpoint = {};
+    const s = create([
+      { target: target0 },
+      { target: target1 },
+      { target: target2, endpoint }
+    ]);
+    assert.equal(s.config[0].target, target0);
+    assert.equal(s.config[1].target, target1);
+    assert.equal(s.config[2].target, target2);
+    assert.equal(s.config[0].endpoint, s.config[1].target);
+    assert.equal(s.config[1].endpoint, s.config[2].target);
+    assert.equal(s.config[2].endpoint, endpoint);
+  });
+  it('All defined `endpoints` except the last will be dropped', () => {
+    const endpoint0 = {};
+    const endpoint1 = [];
+    const endpoint2 = {};
+    const s = new ReactiveStorage([
+      { endpoint: endpoint0 },
+      { endpoint: endpoint1 },
+      { endpoint: endpoint2 }
+    ]);
+    assert.notEqual(s.config[0].endpoint, endpoint0);
+    assert.notEqual(s.config[1].endpoint, endpoint1);
+    assert.deepEqual(s.config[0].endpoint, {});
+    assert.deepEqual(s.config[1].endpoint, {});
   });
 });
 
@@ -230,13 +341,13 @@ describe('Configuration', () => {
   describe('Default values', () => {
     it('endpoint', () => {
       const { config } = create();
-      assert.isNotNull(config.endpoint);
-      assert.equal(Object.getPrototypeOf(config.endpoint), Object.prototype);
+      assert.isNotNull(config[0].endpoint);
+      assert.equal(Object.getPrototypeOf(config[0].endpoint), Object.prototype);
     });
     it('target', () => {
       const { config } = create();
-      assert.isNotNull(config.target);
-      assert.equal(Object.getPrototypeOf(config.endpoint), Object.prototype);
+      assert.isNotNull(config[0].target);
+      assert.equal(Object.getPrototypeOf(config[0].endpoint), Object.prototype);
     });
     it('enumerable', () => {
       const { config } = create();
@@ -263,6 +374,34 @@ describe('Configuration', () => {
       assert.isUndefined(config.postSetter, 'postSetter');
     });
   })
+});
+
+describe('Definition chaining', () => {
+  it('Base', () => {
+    let g0 = 0;
+    let g1 = 0;
+    const c = ReactiveStorage.registerRecursive('value', 62, [
+      {
+        getter: ({ val }) => {
+          g0++;
+          return Math.round(val / 50) * 50
+        }
+      }, {
+        getter: ({ val }) => {
+          g1++;
+          return Math.round(val / 5) * 5
+        }
+      },
+    ]);
+
+    assert.equal(c.targets[1].value, 60);
+    assert.equal(g1, 1);
+
+    g0 = g1 = 0;
+    assert.equal(c.targets[0].value, 50);
+    assert.equal(g1, 1);
+    assert.equal(g0, 1);
+  });
 });
 
 describe('Endpoint', () => {
