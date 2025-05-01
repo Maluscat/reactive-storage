@@ -1,14 +1,42 @@
 export type ObjectKey = number | string | symbol;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
 export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
-export type Data<KV> = {
+export type Target<KV> = {
   [ Key in keyof KV ]: KV[Key]
 };
 
-export type RegistrationData<KV extends Record<ObjectKey, any>> =
-  Pick<RegistrationOptionsWhole<KV>, 'target' | 'endpoint'>;
+/**
+ * Central configuration for registering properties.
+ *
+ * If given an array, properties will be registered separately for each
+ * configuration, each pointing to the next by linking their endpoints and
+ * targets. This results in multiple intermediate sequential data storages,
+ * propagated from last to first.
+ *
+ * @example
+ * ```js
+ * const storage = new ReactiveStorage([
+ *   { getter: ({ val }) => Math.round(val / 50) * 50 },
+ *   { getter: ({ val }) => Math.round(val / 5) * 5 },
+ * ]);
+ * storage.registerRecursive('value', 62);
+ *
+ * console.log(storage.targets[1].value) // 60
+ * // Second getter turns 62 into 60
+ * console.log(storage.targets[0].value) // 50
+ * // Second getter turns 62 into 60
+ * ```
+ *
+ * @see {@link OptionsWhole}
+ */
+export type Configuration<KV extends Record<ObjectKey, any>> =
+  Options<KV> |
+  [ ...Omit<Options<KV>, 'endpoint'>[], Options<KV> ];
 
-/** {@link RegistrationOptions.getter} event argument. */
+export type RegistrationData<KV extends Record<ObjectKey, any>> =
+  Pick<OptionsWhole<KV>, 'target' | 'endpoint'>;
+
+/** {@link Options.getter} event argument. */
 export interface GetterEvent {
   /** Value that was fetched, from the underlying endpoint. */
   val: any;
@@ -32,7 +60,7 @@ export interface GetterEvent {
    */
   path: ObjectKey[];
 }
-/** {@link RegistrationOptions.postSetter} event argument. */
+/** {@link Options.postSetter} event argument. */
 export interface PostSetterEvent {
   /** Value that was set. */
   val: any;
@@ -58,7 +86,7 @@ export interface PostSetterEvent {
    */
   path: ObjectKey[];
 }
-/** {@link RegistrationOptions.setter} event argument. */
+/** {@link Options.setter} event argument. */
 export interface SetterEvent extends PostSetterEvent {
   /** Value to be set. */
   val: any;
@@ -70,13 +98,13 @@ export interface SetterEvent extends PostSetterEvent {
   set: (val: any) => void
 }
 
-export type RegistrationOptions<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
-  [ Prop in keyof RegistrationOptionsWhole<KV> ]?: Prop extends 'depth'
-    ? number | RegistrationOptions<KV>
-    : RegistrationOptionsWhole<KV>[Prop]
+export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
+  [ Prop in keyof OptionsWhole<KV> ]?: Prop extends 'depth'
+    ? number | Options<KV>
+    : OptionsWhole<KV>[Prop]
 }
 
-export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
+export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
   /**
    * The endpoint that the registered property points to which holds the actual
    * data, so an object that the configured setter and getter will deposit the
@@ -90,7 +118,7 @@ export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Re
    * Values are deposited at the specified {@link endpoint}.
    * @default {}
    */
-  target: Data<KV>;
+  target: Target<KV>;
   /**
    * Decide whether to deeply register an object covered by {@link depth}.
    * This is useful to mitigate registering properties within *any* object
@@ -190,7 +218,7 @@ export interface RegistrationOptionsWhole<KV extends Record<ObjectKey, any> = Re
    *
    * @default 0
    */
-  depth?: number | Omit<RegistrationOptionsWhole, 'target'>;
+  depth?: number | Omit<OptionsWhole, 'target'>;
   /**
    * Called *after* a value has been set.
    */
@@ -236,7 +264,7 @@ export class ReactiveStorageError extends Error {
 
 /**
  * Provides some useful filter functions for use in
- * {@link RegistrationOptions.depthFilter}.
+ * {@link Options.depthFilter}.
  *
  * Also exposed via {@link ReactiveStorage.Filter}.
  */
@@ -255,22 +283,29 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
 
   /**
    * Endpoint holding the actual values of the registered properties.
-   * @see {@link RegistrationOptions.endpoint}
+   * @see {@link Options.endpoint}
    */
-  get endpoint() {
-    return this.config.endpoint;
-  }
+  readonly endpoint;
   /**
-   * Access point for registered properties.
-   * @see {@link RegistrationOptions.target}
+   * The first access point for registered properties.
+   * @see {@link Options.target}
    */
-  get target() {
-    return this.config.target;
-  }
+  readonly target;
+  /**
+   * All access points for registered properties in sequential order.
+   * This is only relevant if having passed multiple configurations to the
+   * constructor, otherwise {@link target} can be used as well.
+   * @see {@link Options.target}
+   */
+  readonly targets;
   readonly config;
 
-  constructor(config: RegistrationOptions<KV> = {}) {
+  constructor(config: Configuration<KV> = {}) {
     this.config = ReactiveStorage.#prepareConfig(config);
+    const data = ReactiveStorage.#getDataFromConfigs(this.config);
+    this.endpoint = data.endpoint;
+    this.target = data.target
+    this.targets = data.targets;
   }
 
   /** Check for existence of a registered property on {@link target}. */
@@ -299,7 +334,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
    * @param key The property name to register on {@link target}.
    * @param initialValue The initial value that will be assigned after registering.
    *
-   * @returns The current {@link ReactiveStorage} instance for easy chaining.
+   * @return The current {@link ReactiveStorage} instance for easy chaining.
    *
    * @privateRemarks
    * There is currently no way to make the generics sound since they cannot be
@@ -320,8 +355,6 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
    * @param key The property name to register.
    * @param initialValue The initial value that will be assigned after registering.
    *
-   * @return The final configuration with default values.
-   *
    * @privateRemarks
    * There is currently no way to make the generics sound since they cannot be
    * optional without a default value.
@@ -333,23 +366,22 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
   >(
     key: K | K[],
     initialValue?: V,
-    config: RegistrationOptions<KV> = {}
+    config: Configuration<KV> = {}
   ) {
-    return this.#registerGeneric(key, initialValue, config);
+    const opts = this.#prepareConfig(config);
+    return this.#registerGeneric(key, initialValue, opts);
   }
 
   /**
    * Register a reactive property on a target recursively deep by traversing
    * its initial value and registering all properties within any found array or
-   * object literal (limited by {@link RegistrationOptions.deepFilter}, if any).
+   * object literal (limited by {@link Options.deepFilter}, if any).
    *
    * Shorthand for {@link register} with the deepest
-   * {@link RegistrationOptions.depth} set to `Infinity`.
+   * {@link Options.depth} set to `Infinity`.
    *
    * @param key The property name to register.
    * @param initialValue The initial value that will be assigned after registering.
-   *
-   * @return The final configuration with default values.
    */
   static registerRecursive<
     KV extends Record<K, V>,
@@ -358,9 +390,10 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
   >(
     key: K | K[],
     initialValue?: V,
-    config: RegistrationOptions<KV> = {}
+    config: Configuration<KV> = {}
   ) {
-    return this.#registerGeneric(key, initialValue, config, true);
+    const opts = this.#prepareConfig(config);
+    return this.#registerGeneric(key, initialValue, opts, true);
   }
 
 
@@ -371,22 +404,20 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
     V extends any = KV[K]
   >(
     key: K | K[],
-    initialValue?: V,
-    config: RegistrationOptions<KV> = {},
+    initialValue: V,
+    config: OptionsWhole<KV>[],
     recursive = false
   ) {
-    const opts = this.#prepareConfig(config);
-    if (Array.isArray(key)) {
-      for (const singleKey of key) {
-        this.#register(singleKey, initialValue, opts, recursive);
+    for (const opts of config) {
+      if (Array.isArray(key)) {
+        for (const singleKey of key) {
+          this.#register(singleKey, initialValue, opts, recursive);
+        }
+      } else {
+        this.#register(key, initialValue, opts, recursive);
       }
-    } else {
-      this.#register(key, initialValue, opts, recursive);
     }
-    return {
-      target: opts.target,
-      endpoint: opts.endpoint,
-    } as RegistrationData<KV>;
+    return this.#getDataFromConfigs(config);
   }
 
   static #register<
@@ -396,11 +427,11 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
   >(
     key: K,
     initialValue: V,
-    config: RegistrationOptions<KV>,
+    config: Options<KV>,
     recursive: boolean,
     path: ObjectKey[] = [key]
   ) {
-    const target = config.target ?? {} as Data<KV>;
+    const target = config.target ?? {} as Target<KV>;
     const endpoint = config.endpoint ?? {} as Endpoint;
     const depthFilter = config.depthFilter ?? Filter.objectLiteralOrArray;
     const customGetter = config.getter;
@@ -411,7 +442,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
     let hasCustomDepthEndpoint = false;
     let initial = true;
 
-    let depthOpts: undefined | RegistrationOptions;
+    let depthOpts: undefined | Options;
     if (config.depth || recursive) {
       if (typeof config.depth !== 'object') {
         depthOpts = {};
@@ -495,16 +526,37 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
   }
 
   /**
-   * Add a default target and endpoint of a config if unspecified
-   * and return a shallow copy.
+   * Prepare a passed config such that missing endpoints and targets are filled
+   * with an empty object and multiple configurations are sequentially linked
+   * together into a definition chain by their targets and endpoints. Every
+   * config is shallowly cloned.
    * @internal
    */
-  static #prepareConfig<KV extends Record<ObjectKey, any>>(
-    config: RegistrationOptions<KV>
-  ) {
-    return Object.assign({
-      target: {},
-      endpoint: {},
-    }, config) as RegistrationOptionsWhole<KV>;
+  static #prepareConfig<KV extends Record<ObjectKey, any>>(config: Configuration<KV>) {
+    if (Array.isArray(config)) {
+      for (let i = config.length - 1; i >= 0; i--) {
+        config[i] = Object.assign({ target: {} }, config[i]);
+        if (i > 0) {
+          // @ts-ignore
+          config[i - 1].endpoint = config[i].target;
+        }
+      }
+      return config as OptionsWhole<KV>[];
+    } else {
+      return [
+        Object.assign({
+          target: {},
+          endpoint: {},
+        }, config) as OptionsWhole<KV>
+      ];
+    }
+  }
+
+  static #getDataFromConfigs<KV extends Record<ObjectKey, any>>(config: OptionsWhole<KV>[]) {
+    return {
+      endpoint: config[config.length - 1].endpoint,
+      target: config[0].target,
+      targets: config.map(conf => conf.target),
+    }
   }
 }

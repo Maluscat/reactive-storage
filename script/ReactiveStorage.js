@@ -6,7 +6,7 @@ export class ReactiveStorageError extends Error {
 }
 /**
  * Provides some useful filter functions for use in
- * {@link RegistrationOptions.depthFilter}.
+ * {@link Options.depthFilter}.
  *
  * Also exposed via {@link ReactiveStorage.Filter}.
  */
@@ -23,21 +23,28 @@ export class ReactiveStorage {
     static Filter = Filter;
     /**
      * Endpoint holding the actual values of the registered properties.
-     * @see {@link RegistrationOptions.endpoint}
+     * @see {@link Options.endpoint}
      */
-    get endpoint() {
-        return this.config.endpoint;
-    }
+    endpoint;
     /**
-     * Access point for registered properties.
-     * @see {@link RegistrationOptions.target}
+     * The first access point for registered properties.
+     * @see {@link Options.target}
      */
-    get target() {
-        return this.config.target;
-    }
+    target;
+    /**
+     * All access points for registered properties in sequential order.
+     * This is only relevant if having passed multiple configurations to the
+     * constructor, otherwise {@link target} can be used as well.
+     * @see {@link Options.target}
+     */
+    targets;
     config;
     constructor(config = {}) {
         this.config = ReactiveStorage.#prepareConfig(config);
+        const data = ReactiveStorage.#getDataFromConfigs(this.config);
+        this.endpoint = data.endpoint;
+        this.target = data.target;
+        this.targets = data.targets;
     }
     /** Check for existence of a registered property on {@link target}. */
     has(key) {
@@ -65,7 +72,7 @@ export class ReactiveStorage {
      * @param key The property name to register on {@link target}.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @returns The current {@link ReactiveStorage} instance for easy chaining.
+     * @return The current {@link ReactiveStorage} instance for easy chaining.
      *
      * @privateRemarks
      * There is currently no way to make the generics sound since they cannot be
@@ -84,46 +91,42 @@ export class ReactiveStorage {
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @return The final configuration with default values.
-     *
      * @privateRemarks
      * There is currently no way to make the generics sound since they cannot be
      * optional without a default value.
      */
     static register(key, initialValue, config = {}) {
-        return this.#registerGeneric(key, initialValue, config);
+        const opts = this.#prepareConfig(config);
+        return this.#registerGeneric(key, initialValue, opts);
     }
     /**
      * Register a reactive property on a target recursively deep by traversing
      * its initial value and registering all properties within any found array or
-     * object literal (limited by {@link RegistrationOptions.deepFilter}, if any).
+     * object literal (limited by {@link Options.deepFilter}, if any).
      *
      * Shorthand for {@link register} with the deepest
-     * {@link RegistrationOptions.depth} set to `Infinity`.
+     * {@link Options.depth} set to `Infinity`.
      *
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
-     *
-     * @return The final configuration with default values.
      */
     static registerRecursive(key, initialValue, config = {}) {
-        return this.#registerGeneric(key, initialValue, config, true);
+        const opts = this.#prepareConfig(config);
+        return this.#registerGeneric(key, initialValue, opts, true);
     }
     // ---- Static helpers ----
-    static #registerGeneric(key, initialValue, config = {}, recursive = false) {
-        const opts = this.#prepareConfig(config);
-        if (Array.isArray(key)) {
-            for (const singleKey of key) {
-                this.#register(singleKey, initialValue, opts, recursive);
+    static #registerGeneric(key, initialValue, config, recursive = false) {
+        for (const opts of config) {
+            if (Array.isArray(key)) {
+                for (const singleKey of key) {
+                    this.#register(singleKey, initialValue, opts, recursive);
+                }
+            }
+            else {
+                this.#register(key, initialValue, opts, recursive);
             }
         }
-        else {
-            this.#register(key, initialValue, opts, recursive);
-        }
-        return {
-            target: opts.target,
-            endpoint: opts.endpoint,
-        };
+        return this.#getDataFromConfigs(config);
     }
     static #register(key, initialValue, config, recursive, path = [key]) {
         const target = config.target ?? {};
@@ -220,14 +223,37 @@ export class ReactiveStorage {
         }
     }
     /**
-     * Add a default target and endpoint of a config if unspecified
-     * and return a shallow copy.
+     * Prepare a passed config such that missing endpoints and targets are filled
+     * with an empty object and multiple configurations are sequentially linked
+     * together into a definition chain by their targets and endpoints. Every
+     * config is shallowly cloned.
      * @internal
      */
     static #prepareConfig(config) {
-        return Object.assign({
-            target: {},
-            endpoint: {},
-        }, config);
+        if (Array.isArray(config)) {
+            for (let i = config.length - 1; i >= 0; i--) {
+                config[i] = Object.assign({ target: {} }, config[i]);
+                if (i > 0) {
+                    // @ts-ignore
+                    config[i - 1].endpoint = config[i].target;
+                }
+            }
+            return config;
+        }
+        else {
+            return [
+                Object.assign({
+                    target: {},
+                    endpoint: {},
+                }, config)
+            ];
+        }
+    }
+    static #getDataFromConfigs(config) {
+        return {
+            endpoint: config[config.length - 1].endpoint,
+            target: config[0].target,
+            targets: config.map(conf => conf.target),
+        };
     }
 }
