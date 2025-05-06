@@ -33,8 +33,30 @@ export type Configuration<KV extends Record<ObjectKey, any>> =
   Options<KV> |
   [ ...Omit<Options<KV>, 'endpoint'>[], Options<KV> ];
 
-export type RegistrationData<KV extends Record<ObjectKey, any>> =
-  Pick<OptionsWhole<KV>, 'target' | 'endpoint'>;
+export interface RegistrationData<KV extends Record<ObjectKey, any>> {
+  /**
+   * The endpoint holding the actual data of the registered properties.
+   *
+   * @see {@link OptionsWhole.endpoint}
+   */
+  endpoint: Endpoint;
+  /**
+   * The first access point for registered properties.
+   * Always the first element of {@link targets}.
+   * 
+   * @see {@link OptionsWhole.target}
+   */
+  target: Target<KV>;
+  /**
+   * All access points for registered properties in sequential order.
+   * This is only relevant if having defined multiple configurations, and such,
+   * multiple intermediate storage points. Otherwise {@link target} can be used
+   * as well.
+   *
+   * @see {@link OptionsWhole.targets}
+   */
+  targets: Target<KV>[];
+}
 
 /** {@link Options.getter} event argument. */
 export interface GetterEvent {
@@ -255,13 +277,6 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
   getter?: (event: GetterEvent) => any;
 }
 
-export class ReactiveStorageError extends Error {
-  constructor(...args: any[]) {
-    super(...args);
-    this.name = this.constructor.name;
-  }
-}
-
 /**
  * Provides some useful filter functions for use in
  * {@link Options.depthFilter}.
@@ -277,26 +292,12 @@ export const Filter = {
   any: () => true,
 } as const satisfies Record<string, FilterFunction>;
 
-export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
+export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements RegistrationData<KV> {
   /** @see {@link Filter} */
   static readonly Filter = Filter;
 
-  /**
-   * Endpoint holding the actual values of the registered properties.
-   * @see {@link Options.endpoint}
-   */
   readonly endpoint;
-  /**
-   * The first access point for registered properties.
-   * @see {@link Options.target}
-   */
   readonly target;
-  /**
-   * All access points for registered properties in sequential order.
-   * This is only relevant if having passed multiple configurations to the
-   * constructor, otherwise {@link target} can be used as well.
-   * @see {@link Options.target}
-   */
   readonly targets;
   readonly config;
 
@@ -320,8 +321,10 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
       } else {
         delete this.endpoint[key];
       }
-      // @ts-ignore Checked for property existence above
-      delete this.target[key];
+      for (const target of this.targets) {
+        // @ts-ignore Checked for property existence above
+        delete this.targets[key];
+      }
       return true;
     }
     return false;
@@ -552,7 +555,9 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> {
     }
   }
 
-  static #getDataFromConfigs<KV extends Record<ObjectKey, any>>(config: OptionsWhole<KV>[]) {
+  static #getDataFromConfigs<KV extends Record<ObjectKey, any>>(
+    config: OptionsWhole<KV>[]
+  ): RegistrationData<KV> {
     return {
       endpoint: config[config.length - 1].endpoint,
       target: config[0].target,

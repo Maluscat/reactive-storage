@@ -1,9 +1,3 @@
-export class ReactiveStorageError extends Error {
-    constructor(...args) {
-        super(...args);
-        this.name = this.constructor.name;
-    }
-}
 /**
  * Provides some useful filter functions for use in
  * {@link Options.depthFilter}.

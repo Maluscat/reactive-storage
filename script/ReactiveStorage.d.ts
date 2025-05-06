@@ -247,9 +247,6 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      */
     getter?: (event: GetterEvent) => any;
 }
-export declare class ReactiveStorageError extends Error {
-    constructor(...args: any[]);
-}
 /**
  * Provides some useful filter functions for use in
  * {@link Options.depthFilter}.
