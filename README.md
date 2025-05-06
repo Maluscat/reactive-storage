@@ -100,9 +100,21 @@ target[0] <-[GET]-- endpoint[0]
 target[0] --[SET]-> endpoint[0]
 ```
 
+Instead of only having a single target that points to an endpoint, we can
+scale horizontally by sequentially routing a value through multiple targets:
+```1c
+# "foo" on:
+# 1. target0 = {}
+# 2. target1 = {}
+
+target0.foo <-[GET]-- target1.foo <-[GET]-- endpoint.foo
+target0.foo --[SET]-> target1.foo --[SET]-> endpoint.foo
+```
+
 Deep reactivity is a recursive registration of object values to make their
-children reactive as well. The properties of each distinct object are registered
-into a new target object which their respective parents point to:
+children reactive as well (vertical scaling). The properties of each distinct
+object are registered into a new target object which their respective parents
+point to:
 ```1c
 # "foo = { bar: 3, baz: 4 }" on target = {}
 # implicit: target1 = {} with { GET/SET bar, GET/SET baz }
@@ -194,13 +206,14 @@ register(
 
 #### Static
 The static method optionally takes a [configuration](#configuration) and returns
-the used target and endpoint.
+the used targets and endpoint, where `target` always points to the first item in
+`targets`, which can be used if only one target is used.
 ```ts
 register(
   key: number | string | symbol,
   initialValue?: any,
   options: RegistrationOptions = {}
-): { target: object, endpoint: object }
+): { targets: object[], target: object, endpoint: object }
 ```
 
 `registerRecursive(...)` is a helper function that extends `register` with
@@ -210,7 +223,7 @@ registerRecursive(
   key: number | string | symbol,
   initialValue?: any,
   options?: RegistrationOptions = {}
-): { target: object, endpoint: object }
+): { targets: object[], target: object, endpoint: object }
 ```
 
 ### Configuring deep values
@@ -233,13 +246,13 @@ defining an individual setter while inheriting the topmost getter. Layer 2
 defines one additional implicit layer. Any layers below that won't be reactive.
 Note how the `path` argument of the first two setters always has the same length
 since they are not inherited downwards:
-```ts
+```js
 const storage = new ReactiveStorage({
   depth: {
     depth: {
       setter: ({ val, path }) => { console.log(`Layer 2 or 3 SET ${path.join('.')}:`, val) },
       depth: 1
-    }
+    },
     setter: ({ val, path }) => { console.log(`Layer 1 SET ${path.join('.')}:`, val) },
   },
   setter: ({ val, path }) => { console.log(`Layer 0 SET ${path.join('.')}:`, val) },
@@ -321,6 +334,46 @@ storage.target.foo = [ { lor: 69 }, 'bar', 'baz' ];
 // SET foo.2: "baz"
 ```
 
+### Configuring multiple sequential targets
+By passing not one but multiple configuration objects, it's easy to setup
+multiple target points, each with their own configuration, that a value is
+sequentially routed through until it reaches the endpoint. This is also
+explained in [Concepts](#concepts) as horizontal scaling.
+
+All defined targets (one for each passed configuration) are stored in the
+`targets` property of either the returned data when using the static methods or
+of the created instance. The `target` property always points to the first
+element in `targets` and can be conveniently used when only one target has been
+defined.
+
+Here, two layers are defined. The first does high-level work such as validating
+its values while the second does some mandatory operations. In one possible
+scenario, the first target could be exposed to the user as a high-level
+interface while the second is used for internal purposes where the validity of
+an assigned value is already ensured:
+```js
+const storage = new ReactiveStorage([
+  {
+    setter: ({ val }) => {
+      return !inputIsValid(val);
+    },
+  }, {
+    setter: ({ val, path }) => {
+      propertyHasNewValue(path, val);
+    },
+  }
+]);
+
+storage.register('foo');
+
+storage.targets[0].foo = 3;
+// First go through `inputIsValid`, then `propertyHasNewValue`
+
+storage.targets[1].foo = 4;
+// Only `propertyHasNewValue` is called
+```
+
+
 ### Intercepting values
 By default, a configured **setter** is a passive observer, so after being called,
 the passed value will automatically be set to the property's respective
@@ -336,7 +389,7 @@ this value to the caller.
 In this example, any assigned value that isn't a number will be discarded, while
 numbers will always be clamped to the range [0, 100]. When fetched, they will be
 rounded to the nearest 5:
-```ts
+```js
 const storage = new ReactiveStorage({
   depth: Infinity,
   getter: ({ val }) => {
