@@ -140,6 +140,51 @@ describe('Register', () => {
   });
 });
 
+describe('delete(...)', () => {
+  it('Correctly deletes from both `target` and `endpoint`', () => {
+    const s = create();
+    s.register([ 'foo', 'bar', 'baz' ], 3);
+    assert.hasAllKeys(s.target, ['foo', 'bar', 'baz']);
+    assert.hasAllKeys(s.endpoint, ['foo', 'bar', 'baz']);
+
+    s.delete('foo');
+    assert.hasAllKeys(s.target, ['bar', 'baz']);
+    assert.hasAllKeys(s.endpoint, ['bar', 'baz']);
+  });
+  it('Returns `true` on a successful delete', () => {
+    const s = create();
+    s.register('lor');
+    assert.isTrue(s.delete('lor'));
+    assert.isFalse(s.delete('none'));
+  });
+  it('Correctly deletes from all `targets`', () => {
+    const s = create([{}, {}, {}]);
+    s.register([ 'foo', 'bar', 'baz' ]);
+    s.delete('foo');
+    s.targets.forEach(target => {
+      assert.hasAllKeys(target, ['bar', 'baz']);
+    });
+  });
+});
+
+describe('has(...)', () => {
+  it('Correctly detects registered properties', () => {
+    const s = create();
+    s.register([ 'foo', 'bar', 'baz' ], 3);
+    assert.hasAllKeys(s.target, ['foo', 'bar', 'baz']);
+    assert.hasAllKeys(s.endpoint, ['foo', 'bar', 'baz']);
+
+    assert.isTrue(s.has('foo'));
+    assert.isTrue(s.has('bar'));
+    assert.isTrue(s.has('baz'));
+
+    s.delete('foo');
+    assert.isFalse(s.has('foo'));
+    assert.isTrue(s.has('bar'));
+    assert.isTrue(s.has('baz'));
+  });
+});
+
 describe('Constructor', () => {
   it('Default `endpoint` and `target` if not passed', () => {
     const s = create();

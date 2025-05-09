@@ -41,7 +41,7 @@ export class ReactiveStorage {
             }
             for (const target of this.targets) {
                 // @ts-ignore Checked for property existence above
-                delete this.targets[key];
+                delete target[key];
             }
             return true;
         }
