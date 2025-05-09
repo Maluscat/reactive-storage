@@ -48,27 +48,42 @@ export class ReactiveStorage {
         return false;
     }
     /**
-     * Register a reactive property on {@link target} that points to
-     * {@link endpoint}.
+     * Register one or multiple reactive properties according to the current
+     * instance's configuration ({@link config}) and the given initial value,
+     * if any.
      *
      * @param key The property name to register on {@link target}.
      * @param initialValue The initial value that will be assigned after registering.
      *
      * @return The current {@link ReactiveStorage} instance for easy chaining.
-     *
-     * @privateRemarks
-     * There is currently no way to make the generics sound since they cannot be
-     * optional without a default value.
      */
     register(key, initialValue) {
         ReactiveStorage.#registerGeneric(key, initialValue, this.config);
         return this;
     }
+    /**
+     * Register all property keys and symbols of the given object with their
+     * respective values according to the current instance's configuration
+     * ({@link config}).
+     *
+     * @param object The object the keys and symbols of will be registered.
+     *
+     * @return The current {@link ReactiveStorage} instance for easy chaining.
+     */
+    registerFrom(object) {
+        for (const key of Object.keys(object)) {
+            ReactiveStorage.#registerGeneric(key, object[key], this.config);
+        }
+        for (const symbol of Object.getOwnPropertySymbols(object)) {
+            ReactiveStorage.#registerGeneric(symbol, object[symbol], this.config);
+        }
+        return this;
+    }
     // ---- Static methods ----
     /**
-     * Register a reactive property on a target that points to an endpoint.
-     * If left unspecified, target and/or endpoint will be a new object that can
-     * be obtained using the returned final configuration.
+     * Register a reactive property one or multiple targets that point to an
+     * endpoint. If left unspecified, target and/or endpoint will be a new object
+     * that can be obtained using the returned data.
      *
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
@@ -79,14 +94,33 @@ export class ReactiveStorage {
      */
     static register(key, initialValue, config = {}) {
         const opts = this.#prepareConfig(config);
-        return this.#registerGeneric(key, initialValue, opts);
+        this.#registerGeneric(key, initialValue, opts);
+        return this.#getDataFromConfigs(opts);
     }
     /**
-     * Register a reactive property on a target recursively deep by traversing
-     * its initial value and registering all properties within any found array or
-     * object literal (limited by {@link Options.deepFilter}, if any).
+     * Register all property keys and symbols of the given object with their
+     * respective values. If left unspecified, target and/or endpoint will be a
+     * new object that can be obtained using the returned data.
      *
-     * Shorthand for {@link register} with the deepest
+     * @param object The object the keys and symbols of will be registered.
+     */
+    static registerFrom(object, config) {
+        const opts = this.#prepareConfig(config);
+        for (const key of Object.keys(object)) {
+            this.#registerGeneric(key, object[key], opts);
+        }
+        for (const symbol of Object.getOwnPropertySymbols(object)) {
+            this.#registerGeneric(symbol, object[symbol], opts);
+        }
+        return this.#getDataFromConfigs(opts);
+    }
+    /**
+     * Same as {@link register} but register properties infinitely deep.
+     * Values (both the initial value and values assigned at a later point in
+     * time) will be recursively traversed and registered, limited by
+     * {@link Options.deepFilter}.
+     *
+     * Shorthand for {@link register} with the the deepest configured
      * {@link Options.depth} set to `Infinity`.
      *
      * @param key The property name to register.
@@ -94,7 +128,27 @@ export class ReactiveStorage {
      */
     static registerRecursive(key, initialValue, config = {}) {
         const opts = this.#prepareConfig(config);
-        return this.#registerGeneric(key, initialValue, opts, true);
+        this.#registerGeneric(key, initialValue, opts, true);
+        return this.#getDataFromConfigs(opts);
+    }
+    /**
+     * Same as {@link registerFrom} but register all properties within the given
+     * object infinitely deep.
+     * Values (both the initial values and values assigned at a later point in
+     * time) will be recursively traversed and registered, limited by
+     * {@link Options.deepFilter}.
+     *
+     * @param object The object the keys and symbols of will be registered.
+     */
+    static registerRecursiveFrom(object, config) {
+        const opts = this.#prepareConfig(config);
+        for (const key of Object.keys(object)) {
+            ReactiveStorage.#registerGeneric(key, object[key], opts, true);
+        }
+        for (const symbol of Object.getOwnPropertySymbols(object)) {
+            ReactiveStorage.#registerGeneric(symbol, object[symbol], opts, true);
+        }
+        return this.#getDataFromConfigs(opts);
     }
     // ---- Static helpers ----
     static #registerGeneric(key, initialValue, config, recursive = false) {
@@ -108,7 +162,6 @@ export class ReactiveStorage {
                 this.#register(key, initialValue, opts, recursive);
             }
         }
-        return this.#getDataFromConfigs(config);
     }
     static #register(key, initialValue, config, recursive, path = [key]) {
         const target = config.target ?? {};
@@ -162,8 +215,11 @@ export class ReactiveStorage {
                     // We don't need to save the deep target anywhere
                     // because it is exposed via the updated getter below
                     depthOpts.target = Array.isArray(val) ? [] : {};
-                    for (const propKey in val) {
+                    for (const propKey of Object.keys(val)) {
                         this.#register(propKey, val[propKey], depthOpts, recursive, [...path, propKey]);
+                    }
+                    for (const symbol of Object.getOwnPropertySymbols(val)) {
+                        this.#register(symbol, val[symbol], depthOpts, recursive, [...path, symbol]);
                     }
                     getter = () => depthOpts.target;
                 }
@@ -241,3 +297,14 @@ export class ReactiveStorage {
         };
     }
 }
+// interface Alla {
+//   alla: string
+//   beta: number
+//   bar: symbol
+// }
+// const s = new ReactiveStorage<Alla>();
+// s.registerFrom({
+//   alla: 'eier',
+//   beta: 3,
+//   baz: 'lol'
+// })
