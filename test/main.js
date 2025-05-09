@@ -192,6 +192,13 @@ describe('Constructor', () => {
 });
 
 describe('Definition chains', () => {
+  it('Correct instance properties', () => {
+    const s = create([ {}, {}, {} ]);
+    assert.lengthOf(s.config, 3);
+    assert.lengthOf(s.targets, 3);
+    assert.exists(s.endpoint);
+    assert.equal(s.endpoint, s.config.at(-1).endpoint);
+  });
   it('Correct default chaining', () => {
     const s = create([ {}, {}, {} ]);
     assert.equal(s.config[0].endpoint, s.config[1].target);

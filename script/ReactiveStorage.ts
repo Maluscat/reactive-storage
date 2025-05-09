@@ -544,6 +544,8 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
           config[i - 1].endpoint = config[i].target;
         }
       }
+      // @ts-ignore
+      config[config.length - 1].endpoint ??= {};
       return config as OptionsWhole<KV>[];
     } else {
       return [

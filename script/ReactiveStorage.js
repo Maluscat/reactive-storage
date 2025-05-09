@@ -15,22 +15,8 @@ export const Filter = {
 export class ReactiveStorage {
     /** @see {@link Filter} */
     static Filter = Filter;
-    /**
-     * Endpoint holding the actual values of the registered properties.
-     * @see {@link Options.endpoint}
-     */
     endpoint;
-    /**
-     * The first access point for registered properties.
-     * @see {@link Options.target}
-     */
     target;
-    /**
-     * All access points for registered properties in sequential order.
-     * This is only relevant if having passed multiple configurations to the
-     * constructor, otherwise {@link target} can be used as well.
-     * @see {@link Options.target}
-     */
     targets;
     config;
     constructor(config = {}) {
@@ -53,8 +39,10 @@ export class ReactiveStorage {
             else {
                 delete this.endpoint[key];
             }
-            // @ts-ignore Checked for property existence above
-            delete this.target[key];
+            for (const target of this.targets) {
+                // @ts-ignore Checked for property existence above
+                delete this.targets[key];
+            }
             return true;
         }
         return false;
@@ -232,6 +220,8 @@ export class ReactiveStorage {
                     config[i - 1].endpoint = config[i].target;
                 }
             }
+            // @ts-ignore
+            config[config.length - 1].endpoint ??= {};
             return config;
         }
         else {
