@@ -199,7 +199,9 @@ export class ReactiveStorage {
             configurable: true,
             enumerable: config.enumerable ?? true,
             get: () => {
-                return customGetter?.({ val: getter(), path }) ?? getter();
+                // Request the value via the getter only exactly once!
+                const val = getter();
+                return customGetter?.({ val, path }) ?? val;
             },
             set: (val) => {
                 const prevVal = getter();

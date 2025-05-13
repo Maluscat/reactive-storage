@@ -529,7 +529,9 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
       configurable: true,
       enumerable: config.enumerable ?? true,
       get: () => {
-        return customGetter?.({ val: getter(), path }) ?? getter();
+        // Request the value via the getter only exactly once!
+        const val = getter();
+        return customGetter?.({ val, path }) ?? val;
       },
       set: (val: any) => {
         const prevVal = getter();
