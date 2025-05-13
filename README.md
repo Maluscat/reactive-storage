@@ -101,7 +101,8 @@ target[0] --[SET]-> endpoint[0]
 ```
 
 Instead of only having a single target that points to an endpoint, we can
-scale horizontally by sequentially routing a value through multiple targets:
+scale horizontally by sequentially routing a value through
+[multiple targets](#configuring-multiple-sequential-targets):
 ```1c
 # "foo" on:
 # 1. target0 = {}
@@ -111,34 +112,34 @@ target0.foo <-[GET]-- target1.foo <-[GET]-- endpoint.foo
 target0.foo --[SET]-> target1.foo --[SET]-> endpoint.foo
 ```
 
-Deep reactivity is a recursive registration of object values to make their
-children reactive as well (vertical scaling). The properties of each distinct
-object are registered into a new target object which their respective parents
-point to:
+[Deep reactivity](#configuring-deep-values) is a recursive registration of
+object values to make their children reactive as well (vertical scaling). The
+properties of each distinct object are registered into a new storage object
+which their respective parents point to:
 ```1c
 # "foo = { bar: 3, baz: 4 }" on target = {}
-# implicit: target1 = {} with { GET/SET bar, GET/SET baz }
+# implicit: storage1 = {} with { GET/SET bar, GET/SET baz }
 
-target.foo <-[GET]-- target1
+target.foo <-[GET]-- storage1
 target.foo --[SET]-> endpoint.foo
 
-target1.bar <-[GET]-- endpoint.foo.bar
-target1.bar --[SET]-> endpoint.foo.bar
+storage1.bar <-[GET]-- endpoint.foo.bar
+storage1.bar --[SET]-> endpoint.foo.bar
 
-target1.baz <-[GET]-- endpoint.foo.baz
-target1.baz --[SET]-> endpoint.foo.baz
+storage1.baz <-[GET]-- endpoint.foo.baz
+storage1.baz --[SET]-> endpoint.foo.baz
 ```
 
 Looking only at the getters makes it a bit clearer:
 ```1c
 # "foo = { bar: 3, baz: { lor: 10 } }" on target = {}
-# implicit: target1 = {} with { GET/SET bar, GET/SET baz }
-# implicit: target2 = {} with { GET/SET lor }
+# implicit: storage1 = {} with { GET/SET bar, GET/SET baz }
+# implicit: storage2 = {} with { GET/SET lor }
 
-target.foo <-[GET]-- target1
-target1.bar <-[GET]-- endpoint.foo.bar
-target1.baz <-[GET]-- target2
-target2.lor <-[GET]-- endpoint.foo.baz.lor
+target.foo <-[GET]-- storage1
+storage1.bar <-[GET]-- endpoint.foo.bar
+storage1.baz <-[GET]-- storage2
+storage2.lor <-[GET]-- endpoint.foo.baz.lor
 ```
 
 
@@ -153,11 +154,14 @@ for use in TypeScript.
 
 ReactiveStorage can make properties reactive such that they invoke callbacks
 whenever they are accessed or assigned to. In addition, object values can be
-made deeply reactive – This allows any change within arbitrarily deeply nested
-properties to be caught and intercepted. *Any* object can be deeply registered,
-though by default only arrays and object literals will propagate to avoid
-infinite recursion and unwanted overhead (can be controlled with the
-[`depthFilter`](#depthfilter) config option).
+made [deeply reactive](#configuring-deep-values) – This allows any change within
+arbitrarily deeply nested properties to be caught and intercepted. *Any* object
+can be deeply registered, though by default only arrays and object literals will
+propagate to avoid infinite recursion and unwanted overhead (can be controlled
+with the [`depthFilter`](#depthfilter) config option). In addition, properties
+can be sequentially routed through
+[multiple targets](#configuring-multiple-sequential-targets), each with their
+own configuration.
 
 ### Instanced vs. static approach
 There are two ways to use this library: Using a `ReactiveStorage` instance or
@@ -168,9 +172,12 @@ which is passed in the constructor and used every time a property is registered.
 The static methods take the configuration on a per-registration basis as an
 additional argument.
 
-The used configuration is stored in the `config` instance property. The target
-and endpoint are additionally exposed via the `target` and `endpoint` properties
-respectively.
+The used configuration is stored in the `config` instance property. The
+target(s) and endpoint are additionally exposed via the `targets`, `target` and
+`endpoint` properties respectively. `target` always points to the first item of
+`targets`, so unless you're using
+[multiple targets](#configuring-multiple-sequential-targets), you can always use
+that one.
 
 ```js
 import { ReactiveStorage, Filter } from './ReactiveStorage.js';
@@ -188,57 +195,81 @@ const storage = new ReactiveStorage({
 ```
 
 ### Registering properties
-The `register(...)` method is used to register one or multiple properties,
-optionally with an initial value. When using a `depth` configuration, any value,
-so either the initial value or values assigned at any later point in time, will
-be recursively traversed and registered until the given depth as long as it
-matches the `depthFilter` (only object literals and arrays by default).
+The `register(...)` and `registerFrom(...)` methods are used to register one or
+multiple properties. When using a `depth` configuration, any value, so either
+the initial value or values assigned at any later point in time, will be
+recursively traversed and registered until the given depth as long as it matches
+the `depthFilter` (only object literals and arrays by default). See the
+[examples](#examples) for more info.
 
 #### Instance
-The instance method uses the instance's [configuration](#configuration) and
-returns itself, to allow for chaining.
+The instance method `register(...)` uses the instance's
+[configuration](#configuration) and returns the instance to allow for chaining.
+The initial value is optional.
 ```ts
 register(
-  key: number | string | symbol,
+  key: number | string | symbol | (number | string | symbol)[],
   initialValue?: any
 ): ReactiveStorage
 ```
 
+`registerFrom(...)` can be used to register all properties (including symbols)
+of a given object on the instance's target.
+```ts
+registerFrom(data: object): ReactiveStorage
+```
+
 #### Static
-The static method optionally takes a [configuration](#configuration) and returns
-the used targets and endpoint, where `target` always points to the first item in
-`targets`, which can be used if only one target is used.
+The static methods optionally take a [configuration](#configuration) and return
+an object containing the used targets and endpoint, in which `target` points to
+the first item in `targets`.
 ```ts
 register(
-  key: number | string | symbol,
+  key: number | string | symbol | (number | string | symbol)[],
   initialValue?: any,
   options: RegistrationOptions = {}
 ): { targets: object[], target: object, endpoint: object }
 ```
+```ts
+registerFrom(
+  data: object,
+  options: RegistrationOptions = {}
+): { targets: object[], target: object, endpoint: object }
+```
 
-`registerRecursive(...)` is a helper function that extends `register` with
+There are helper functions to extend each of the above defined functions with
 infinitely deep recursion (same as `depth: Infinity` in the deepest `depth`).
 ```ts
 registerRecursive(
-  key: number | string | symbol,
+  key: number | string | symbol | (number | string | symbol)[],
   initialValue?: any,
   options?: RegistrationOptions = {}
+): { targets: object[], target: object, endpoint: object }
+```
+```ts
+registerRecursiveFrom(
+  data: object,
+  options: RegistrationOptions = {}
 ): { targets: object[], target: object, endpoint: object }
 ```
 
 ### Configuring deep values
 To register a property deeply, you can use the `depth` config option which
-accepts either a number or a configuration. If given a *number*, this will be
-the max depth until which assigned values will be made reactive. In this case, a
-layer's configuration will be inherited from the parent config, with the
-exception of the `target` and `endpoint` options.
+accepts either a number or a configuration. A deep configuration will again
+register any properties (including symbols) of an assigned object, provided that
+it matches the [`depthFilter`](#depthfilter) config option.
+
+If given a *number*, this will be the max depth until which assigned values will
+be made reactive. In this case, a layer's configuration will be inherited from
+the parent config, with the exception of the `target` and `endpoint` options.
 
 A given *configuration* will define options for that specific layer, which is
 useful to specify individual getters/setters for each layer of depth. The
 `target` option may not be specified since it will change with each new
-assignment while other missing options except `endpoint` will be inherited from
-its parent. This setup can be nested infinitely deep. To mitigate needing to do
-this extensively, you can also make use of the getter/setter `path` argument
+assignment. Missing options except `endpoint` and `target` will be inherited
+from its parent unless explicitly set to `false`. This setup can be nested
+infinitely deep. To mitigate needing to extensively nest depth configurations,
+you can also make use of the [getter/setter](#setter) `path` argument
 (specifically, its length).
 
 In this example, three explicit reactivity layers are defined, each of which
@@ -335,10 +366,12 @@ storage.target.foo = [ { lor: 69 }, 'bar', 'baz' ];
 ```
 
 ### Configuring multiple sequential targets
-By passing not one but multiple configuration objects, it's easy to setup
+By passing not just one but multiple configuration objects, it's easy to setup
 multiple target points, each with their own configuration, that a value is
 sequentially routed through until it reaches the endpoint. This is also
-explained in [Concepts](#concepts) as horizontal scaling.
+explained in [Concepts](#concepts) as horizontal scaling. Only the last
+configuration may define the `endpoint` property – In all others, it will be
+overridden.
 
 All defined targets (one for each passed configuration) are stored in the
 `targets` property of either the returned data when using the static methods or
@@ -521,7 +554,8 @@ through additional layers of getters and setters. If a value is reassigned, it
 is re-registered with the same configuration until the configured depth.
 
 **If given a configuration**, the registered property will assume these options
-in its layer. Can be nested infinitely deep.
+in its layer and inherit missing ones unless set to `false`. Can be nested
+infinitely deep.
 
 **If given a number**, keys will be registered recursively up until the given
 depth, inheriting the parent options. Can be `Infinity`.
@@ -581,6 +615,94 @@ getter functions lightweight.
 The passed event object has the following properties:
 - `val`: The value from the underlying endpoint
 - `path` (`Array<string | symbol>`): Key path of the property that was set
+
+
+## Examples
+Using `registerFrom` to register every property of a predefined object. Notice
+how `"bar"` does not invoke an initial setter call since its initial value is
+undefined.
+```js
+const data = {
+  foo: 3,
+  bar: undefined,
+  [Symbol.for('baz')]: 'unique Symbol!'
+};
+
+// We just extract `target` because we only have a single target
+// and don't care about `endpoint`
+const { target } = ReactiveStorage.registerFrom(data, {
+  setter: ({ val, path }) => { console.log(`${path}: ${val}`) }
+});
+// ['foo']: 3
+// Symbol: 'unique Symbol!'
+```
+
+<hr>
+Arrays work analogously. Here we use a nested depth configuration and multiple
+targets. We assume that we only ever work with arrays in this scenario, so we
+set each target to an empty array as opposed to an empty object literal (even
+though both are functionally equivalent).
+
+The first target simply reports the values it gets. The second caps any received
+number to 100 and the third discards any strings set *in the first vertical layer*
+since it does not configure any depth. Keep in mind that getters and setters
+propagate in contrary directions, so a setter trickles down: `target[0] ->
+target[1] -> target[2] -> endpoint` while a getter bubbles up: `target[0] <-
+target[1] <- target[2] <- endpoint`.
+```js
+const data = ReactiveStorage.registerFrom([ 0, 1, 2, 3 ], [
+  {
+    target: [],
+    depth: {
+      getter: false
+    },
+    getter: ({ val }) => {
+      console.log("Layer 0:", val);
+    }
+  }, {
+    target: [],
+    depth: 1,
+    getter: ({ val }) => {
+      if (typeof val === 'number') {
+        return Math.min(val, 100);
+      }
+    }
+  }, {
+    target: [],
+    setter: ({ val }) => {
+      if (typeof val === 'string') {
+        console.log("Dropping string!");
+        return true;
+      }
+    },
+    getter: ({ val }) => {
+      console.log("Layer 2:", val);
+    }
+  }
+]);
+
+/* Getters invoked by setting a value have been omitted */
+console.log(data.targets[0][0]); // 0
+// Layer 2: 0
+// Layer 0: 0
+data.targets[0][0] = 120;
+console.log(data.targets[0][0]); // 100
+// Layer 2: 120
+// Layer 0: 100
+console.log(data.targets[2][0]); // 120
+// Layer 2: 120
+
+data.targets[0][1] = [ 200 ];
+console.log(data.targets[0][1][0]); // 100
+// Layer 0: 100
+
+data.targets[0][2] = -3;
+data.targets[0][2] = 'foobar';
+// Dropping string!
+console.log(data.targets[0][2]); // -3
+// Layer 2: -3
+// Layer 0: -3
+```
 
 
 ## Docs
