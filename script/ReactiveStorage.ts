@@ -493,9 +493,9 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     recursive: boolean,
     path: ObjectKey[] = [key]
   ) {
-    const target = config.target ?? {} as Target<KV>;
-    const endpoint = config.endpoint ?? {} as Endpoint;
-    const depthFilter = config.depthFilter ?? Filter.objectLiteralOrArray;
+    const target = config.target || {} as Target<KV>;
+    const endpoint = config.endpoint || {} as Endpoint;
+    const depthFilter = config.depthFilter || Filter.objectLiteralOrArray;
     const customGetter = config.getter;
     const customSetter = config.setter;
     const customPostSetter = config.postSetter;
@@ -518,16 +518,16 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
       }
       hasCustomDepthEndpoint = !!depthOpts.endpoint;
 
-      depthOpts.setter ??= config.setter;
-      depthOpts.getter ??= config.getter;
-      depthOpts.postSetter ??= config.postSetter;
-      depthOpts.enumerable ??= config.enumerable;
-      depthOpts.depthFilter ??= config.depthFilter;
+      depthOpts.setter ||= config.setter;
+      depthOpts.getter ||= config.getter;
+      depthOpts.postSetter ||= config.postSetter;
+      depthOpts.enumerable ||= config.enumerable;
+      depthOpts.depthFilter ||= config.depthFilter;
     }
 
     Object.defineProperty(target, key, {
       configurable: true,
-      enumerable: config.enumerable ?? true,
+      enumerable: config.enumerable || true,
       get: () => {
         // Request the value via the getter only exactly once!
         const val = getter();
@@ -609,7 +609,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
         }
       }
       // @ts-ignore
-      config[config.length - 1].endpoint ??= {};
+      config[config.length - 1].endpoint ||= {};
       return config as OptionsWhole<KV>[];
     } else {
       return [

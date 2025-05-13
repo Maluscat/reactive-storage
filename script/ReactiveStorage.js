@@ -164,9 +164,9 @@ export class ReactiveStorage {
         }
     }
     static #register(key, initialValue, config, recursive, path = [key]) {
-        const target = config.target ?? {};
-        const endpoint = config.endpoint ?? {};
-        const depthFilter = config.depthFilter ?? Filter.objectLiteralOrArray;
+        const target = config.target || {};
+        const endpoint = config.endpoint || {};
+        const depthFilter = config.depthFilter || Filter.objectLiteralOrArray;
         const customGetter = config.getter;
         const customSetter = config.setter;
         const customPostSetter = config.postSetter;
@@ -189,15 +189,15 @@ export class ReactiveStorage {
                 depthOpts = Object.assign({}, config.depth);
             }
             hasCustomDepthEndpoint = !!depthOpts.endpoint;
-            depthOpts.setter ??= config.setter;
-            depthOpts.getter ??= config.getter;
-            depthOpts.postSetter ??= config.postSetter;
-            depthOpts.enumerable ??= config.enumerable;
-            depthOpts.depthFilter ??= config.depthFilter;
+            depthOpts.setter ||= config.setter;
+            depthOpts.getter ||= config.getter;
+            depthOpts.postSetter ||= config.postSetter;
+            depthOpts.enumerable ||= config.enumerable;
+            depthOpts.depthFilter ||= config.depthFilter;
         }
         Object.defineProperty(target, key, {
             configurable: true,
-            enumerable: config.enumerable ?? true,
+            enumerable: config.enumerable || true,
             get: () => {
                 // Request the value via the getter only exactly once!
                 const val = getter();
@@ -279,7 +279,7 @@ export class ReactiveStorage {
                 }
             }
             // @ts-ignore
-            config[config.length - 1].endpoint ??= {};
+            config[config.length - 1].endpoint ||= {};
             return config;
         }
         else {
