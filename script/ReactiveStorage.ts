@@ -631,16 +631,3 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     }
   }
 }
-
-// interface Alla {
-//   alla: string
-//   beta: number
-//   bar: symbol
-// }
-
-// const s = new ReactiveStorage<Alla>();
-// s.registerFrom({
-//   alla: 'eier',
-//   beta: 3,
-//   baz: 'lol'
-// })

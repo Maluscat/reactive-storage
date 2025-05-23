@@ -299,14 +299,3 @@ export class ReactiveStorage {
         };
     }
 }
-// interface Alla {
-//   alla: string
-//   beta: number
-//   bar: symbol
-// }
-// const s = new ReactiveStorage<Alla>();
-// s.registerFrom({
-//   alla: 'eier',
-//   beta: 3,
-//   baz: 'lol'
-// })
