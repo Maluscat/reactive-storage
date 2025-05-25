@@ -29,6 +29,26 @@ storage.target.foo.baz[1] = 'lor';
 ```
 
 
+## Contents
+- [Rationale](#rationale)
+- [Limitations](#limitations)
+- [Installation](#installation)
+- [Concepts](#concepts)
+- [Usage](#usage)
+  - [Instanced vs. static](#instanced-vs-static-approach)
+  - [Registering properties](#registering-properties)
+  - [Configuring deep values](#configuring-deep-values)
+  - [Reactivity is kept alive](#reactivity-is-kept-alive)
+  - [Initial assignment](#initial-assignment)
+  - [Intercepting values](#intercepting-values)
+  - [Multiple sequential targets](#multiple-sequential-targets)
+  - [Instance helper functions](#instance-helper-functions)
+  - [Using with types](#using-with-types)
+- [Configuration](#configuration)
+- [Examples](#examples)
+- [Docs](#docs)
+
+
 ## Rationale
 [Proxies](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
 are dope and allow for full reactivity, but they come with a significant
@@ -102,7 +122,7 @@ target[0] --[SET]-> endpoint[0]
 
 Instead of only having a single target that points to an endpoint, we can
 scale horizontally by sequentially routing a value through
-[multiple targets](#configuring-multiple-sequential-targets):
+[multiple targets](#multiple-sequential-targets):
 ```1c
 # "foo" on:
 # 1. target0 = {}
@@ -160,8 +180,8 @@ can be deeply registered, though by default only arrays and object literals will
 propagate to avoid infinite recursion and unwanted overhead (can be controlled
 with the [`depthFilter`](#depthfilter) config option). In addition, properties
 can be sequentially routed through
-[multiple targets](#configuring-multiple-sequential-targets), each with their
-own configuration.
+[multiple targets](#multiple-sequential-targets), each with their own
+configuration.
 
 ### Instanced vs. static approach
 There are two ways to use this library: Using a `ReactiveStorage` instance or
@@ -176,8 +196,7 @@ The used configuration is stored in the `config` instance property. The
 target(s) and endpoint are additionally exposed via the `targets`, `target` and
 `endpoint` properties respectively. `target` always points to the first item of
 `targets`, so unless you're using
-[multiple targets](#configuring-multiple-sequential-targets), you can always use
-that one.
+[multiple targets](#multiple-sequential-targets), you can always use that one.
 
 ```js
 import { ReactiveStorage, Filter } from './ReactiveStorage.js';
@@ -302,11 +321,35 @@ storage.target.foo = { bar: { baz: { lor: { val: 9 } } } }
 /// <Layer 4 and downwards is not reactive>
 ```
 
+### Reactivity is kept alive
+The initial registration [configuration](#configuration) is always kept alive,
+meaning that reassigning a value will register it with the configuration used in
+its initial registration. This also means that providing an initial value is
+optional – If omitted, an initial setter call will not be invoked (same with
+explicitly passing `undefined`).
+```js
+const storage = new ReactiveStorage({
+  depth: Infinity,
+  setter: ({ val, path }) => { console.log(`SET ${path.join('.')}:`, val) },
+});
+
+storage.register('foo');
+
+storage.target.foo = 3;
+// SET foo: 3
+
+storage.target.foo = [ { lor: 69 }, 'bar', 'baz' ];
+// SET foo: [ ... ]
+// SET foo.0: { foo: 69 }
+// SET foo.0.lor: 69
+// SET foo.1: "bar"
+// SET foo.2: "baz"
+```
 
 ### Initial assignment
-The initial assignment will already call the specified `setter` and
-`postSetter`. This can be filtered using the callback functions' `initial`
-parameter.
+The initial assignment will already call the specified `setter` and `postSetter`
+(unless the initial value is omitted or `undefined`). This can be filtered using
+the callback functions' `initial` parameter.
 ```js
 const storage = new ReactiveStorage({
   depth: Infinity,
@@ -339,73 +382,6 @@ storage.target.foo = 3;
 //      SET foo: 3
 // POST-SET foo: 3
 ```
-
-### Reactivity is kept alive
-The initial registration [configuration](#configuration) is always kept alive,
-meaning that reassigning a value will register it with the configuration used in
-its initial registration. This also means that providing an initial value is
-optional – If omitted, an initial setter call will not be invoked (same with
-explicitly passing `undefined`).
-```js
-const storage = new ReactiveStorage({
-  depth: Infinity,
-  setter: ({ val, path }) => { console.log(`SET ${path.join('.')}:`, val) },
-});
-
-storage.register('foo');
-
-storage.target.foo = 3;
-// SET foo: 3
-
-storage.target.foo = [ { lor: 69 }, 'bar', 'baz' ];
-// SET foo: [ ... ]
-// SET foo.0: { foo: 69 }
-// SET foo.0.lor: 69
-// SET foo.1: "bar"
-// SET foo.2: "baz"
-```
-
-### Configuring multiple sequential targets
-By passing not just one but multiple configuration objects, it's easy to setup
-multiple target points, each with their own configuration, that a value is
-sequentially routed through until it reaches the endpoint. This is also
-explained in [Concepts](#concepts) as horizontal scaling. Only the last
-configuration may define the `endpoint` property – In all others, it will be
-overridden.
-
-All defined targets (one for each passed configuration) are stored in the
-`targets` property of either the returned data when using the static methods or
-of the created instance. The `target` property always points to the first
-element in `targets` and can be conveniently used when only one target has been
-defined.
-
-Here, two layers are defined. The first does high-level work such as validating
-its values while the second does some mandatory operations. In one possible
-scenario, the first target could be exposed to the user as a high-level
-interface while the second is used for internal purposes where the validity of
-an assigned value is already ensured:
-```js
-const storage = new ReactiveStorage([
-  {
-    setter: ({ val }) => {
-      return !inputIsValid(val);
-    },
-  }, {
-    setter: ({ val, path }) => {
-      propertyHasNewValue(path, val);
-    },
-  }
-]);
-
-storage.register('foo');
-
-storage.targets[0].foo = 3;
-// First go through `inputIsValid`, then `propertyHasNewValue`
-
-storage.targets[1].foo = 4;
-// Only `propertyHasNewValue` is called
-```
-
 
 ### Intercepting values
 By default, a configured **setter** is a passive observer, so after being called,
@@ -454,6 +430,47 @@ console.log(storage.target.foo) // 50
 storage.target.foo = 'bar'
 console.log(storage.endpoint.foo) // 52
 console.log(storage.target.foo) // 50
+```
+
+### Multiple sequential targets
+By passing not just one but multiple configuration objects, it's easy to setup
+multiple target points, each with their own configuration, that a value is
+sequentially routed through until it reaches the endpoint. This is also
+explained in [Concepts](#concepts) as horizontal scaling. Only the last
+configuration may define the `endpoint` property – In all others, it will be
+overridden.
+
+All defined targets (one for each passed configuration) are stored in the
+`targets` property of either the returned data when using the static methods or
+of the created instance. The `target` property always points to the first
+element in `targets` and can be conveniently used when only one target has been
+defined.
+
+Here, two layers are defined. The first does high-level work such as validating
+its values while the second does some mandatory operations. In one possible
+scenario, the first target could be exposed to the user as a high-level
+interface while the second is used for internal purposes where the validity of
+an assigned value is already ensured:
+```js
+const storage = new ReactiveStorage([
+  {
+    setter: ({ val }) => {
+      return !inputIsValid(val);
+    },
+  }, {
+    setter: ({ val, path }) => {
+      propertyHasNewValue(path, val);
+    },
+  }
+]);
+
+storage.register('foo');
+
+storage.targets[0].foo = 3;
+// First go through `inputIsValid`, then `propertyHasNewValue`
+
+storage.targets[1].foo = 4;
+// Only `propertyHasNewValue` is called
 ```
 
 ### Instance helper functions
