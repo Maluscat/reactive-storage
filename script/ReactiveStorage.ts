@@ -292,6 +292,17 @@ export const Filter = {
   any: () => true,
 } as const satisfies Record<string, FilterFunction>;
 
+/**
+ * Reactivity helper to register, observe and intercept deeply reactive data
+ * without proxies.
+ *
+ * Reactive properties are registered using either the instance methods
+ * {@link ReactiveStorage#register} or {@link ReactiveStorage#registerFrom}
+ * after passing a configuration to the constructor, or using the static methods
+ * {@link ReactiveStorage.register}, {@link ReactiveStorage.registerFrom},
+ * {@link ReactiveStorage.registerRecursive} or
+ * {@link ReactiveStorage.registerRecursiveFrom}.
+ */
 export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements RegistrationData<KV> {
   /** @see {@link Filter} */
   static readonly Filter = Filter;

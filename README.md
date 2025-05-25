@@ -618,6 +618,7 @@ The passed event object has the following properties:
 
 
 ## Examples
+### Basic example using `registerFrom`
 Using `registerFrom` to register every property of a predefined object. Notice
 how `"bar"` does not invoke an initial setter call since its initial value is
 undefined.
@@ -637,7 +638,7 @@ const { target } = ReactiveStorage.registerFrom(data, {
 // Symbol: 'unique Symbol!'
 ```
 
-<hr>
+### Deep arrays with `registerFrom` and multiple targets
 Arrays work analogously. Here we use a nested depth configuration and multiple
 targets. We assume that we only ever work with arrays in this scenario, so we
 set each target to an empty array as opposed to an empty object literal (even
@@ -702,6 +703,55 @@ data.targets[0][2] = 'foobar';
 console.log(data.targets[0][2]); // -3
 // Layer 2: -3
 // Layer 0: -3
+```
+
+### Register deep properties using an instance
+This example makes use of a `ReactiveStorage` instance instead of calling a
+static registration method directly. This gives us the ability to register
+multiple properties as well as delete them again at any time.
+
+Here, the setters of the first two depth layers are configured manually while
+changes in layer 2 and below invoke a catch-all setter. Property paths (and with
+that, also their depth) can be determined by the `path` argument. If the
+respective depth was set to, say, `2` instead of `Infinity`, only layers 2, 3
+and 4 would be made reactive (the defined depth layer + 2).
+```js
+const storage = new ReactiveStorage({
+  depth: {
+    depth: {
+      depth: Infinity,
+      setter: ({ val, path }) => {
+        console.log(`Catch-all layer ${path.length - 1}:`, val);
+      }
+    },
+    setter: ({ val }) => {
+      console.log("Layer 1:", val);
+    }
+  },
+  setter: ({ val }) => {
+    console.log("Layer 0:", val);
+  }
+});
+
+storage
+  .register(['foo', 'bar', 'baz'])
+  .register('lor', 3);
+// Layer 0: 3
+
+storage.target.foo = {
+  foo1: {
+    foo2: {
+      foo3: [ 10, 20, 30 ]
+    }
+  }
+};
+// Layer 0: { foo1: ... }
+// Layer 1: { foo2: ... }
+// Catch-all layer 2: { foo3: ... }
+// Catch-all layer 3: [ 10, 20, 30 ]
+// Catch-all layer 4: 10
+// Catch-all layer 4: 20
+// Catch-all layer 4: 30
 ```
 
 
