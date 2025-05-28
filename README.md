@@ -75,9 +75,9 @@ it inherits all of its limitations too. These largely amount to:
 
 
 ## Installation
-Since this library is completely runtime agnostic, it can be used inside any
-JavaScript environment, including the web. The work on the library is mostly
-finished, so there won't be many more updates in the future.
+This library can be used inside any JavaScript environment, including the web.
+The work on the library is mostly finished, so there won't be many more updates
+in the future.
 
 ### Download
 The only required file is `ReactiveStorage.js` inside the [`script`](./script)
@@ -96,7 +96,7 @@ npm install @maluscat/reactive-storage
 ## Concepts
 A reactive property is defined via `Object.defineProperty` with attached
 getters/setters. Properties are defined on a target object and store their
-actual values at an arbitrary place, the endpoint.  In this library, the
+actual values at an arbitrary place, the endpoint. In this library, the
 endpoint is always an object, and a property's values are stored under the
 property name within that endpoint (see below).
 
@@ -187,16 +187,15 @@ configuration.
 There are two ways to use this library: Using a `ReactiveStorage` instance or
 using static methods.
 
-An instance always holds a single immutable [configuration](#configuration)
-which is passed in the constructor and used every time a property is registered.
-The static methods take the configuration on a per-registration basis as an
-additional argument.
+An instance takes a single immutable [configuration](#configuration) in its
+constructor which is used every time a property is registered. The static
+methods take the configuration on a per-registration basis.
 
 The used configuration is stored in the `config` instance property. The
 target(s) and endpoint are additionally exposed via the `targets`, `target` and
-`endpoint` properties respectively. `target` always points to the first item of
-`targets`, so unless you're using
-[multiple targets](#multiple-sequential-targets), you can always use that one.
+`endpoint` properties. `target` always points to the first item of `targets`, so
+unless you're using [multiple targets](#multiple-sequential-targets), you can
+always use that one.
 
 ```js
 import { ReactiveStorage, Filter } from './ReactiveStorage.js';
@@ -214,15 +213,10 @@ const storage = new ReactiveStorage({
 ```
 
 ### Registering properties
-The `register(...)` and `registerFrom(...)` methods are used to register one or
-multiple properties. When using a `depth` configuration, any value, so either
-the initial value or values assigned at any later point in time, will be
-recursively traversed and registered until the given depth as long as it matches
-the `depthFilter` (only object literals and arrays by default). See the
-[examples](#examples) for more info.
+See the [examples](#examples) for more info.
 
 #### Instance
-The instance method `register(...)` uses the instance's
+The instance method `register(...)` uses its instance's
 [configuration](#configuration) and returns the instance to allow for chaining.
 The initial value is optional.
 ```ts
@@ -273,29 +267,28 @@ registerRecursiveFrom(
 ```
 
 ### Configuring deep values
-To register a property deeply, you can use the `depth` config option which
-accepts either a number or a configuration. A deep configuration will again
-register any properties (including symbols) of an assigned object, provided that
-it matches the [`depthFilter`](#depthfilter) config option.
+To register a property deeply, you can use the [`depth`](#depth) config option
+which accepts either a number or a configuration. A deep configuration will
+register any properties (including symbols) of an assigned object again,
+provided that it matches the [`depthFilter`](#depthfilter) config option.
 
 If given a *number*, this will be the max depth until which assigned values will
-be made reactive. In this case, a layer's configuration will be inherited from
-the parent config, with the exception of the `target` and `endpoint` options.
+be registered. In this case, a layer's options except `target` and `endpoint`
+will be inherited from its parent config unless explicitly set to `false`.
 
 A given *configuration* will define options for that specific layer, which is
 useful to specify individual getters/setters for each layer of depth. The
-`target` option may not be specified since it will change with each new
-assignment. Missing options except `endpoint` and `target` will be inherited
-from its parent unless explicitly set to `false`. This setup can be nested
-infinitely deep. To mitigate needing to extensively nest depth configurations,
-you can also make use of the [getter/setter](#setter) `path` argument
-(specifically, its length).
+`target` option must not be specified (since it will change with each new
+assignment). Missing options except `endpoint` and `target` will be inherited
+from its parent unless explicitly set to `false`. Instead of extensively nesting
+depth configurations, you can also make use of the [getter/setter](#setter)
+`path` argument (specifically, its length).
 
-In this example, three explicit reactivity layers are defined, each of which
-defining an individual setter while inheriting the topmost getter. Layer 2
-defines one additional implicit layer. Any layers below that won't be reactive.
-Note how the `path` argument of the first two setters always has the same length
-since they are not inherited downwards:
+Here, three explicit reactivity layers are defined, each of which define an
+individual setter while inheriting the topmost getter. Layer 2 defines one
+additional implicit layer. Any layers below that won't be reactive. Note how
+the `path` argument of the first two setters always has the same length since
+they are not inherited downwards:
 ```js
 const storage = new ReactiveStorage({
   depth: {
@@ -338,6 +331,7 @@ storage.register('foo');
 storage.target.foo = 3;
 // SET foo: 3
 
+// <Note how this is reactive again!>
 storage.target.foo = [ { lor: 69 }, 'bar', 'baz' ];
 // SET foo: [ ... ]
 // SET foo.0: { foo: 69 }
@@ -384,20 +378,21 @@ storage.target.foo = 3;
 ```
 
 ### Intercepting values
-By default, a configured **setter** is a passive observer, so after being called,
-the passed value will automatically be set to the property's respective
-endpoint. However, a setter may return `true` to prevent the value from being
-set. In addition to just dropping a value like this, a modified/custom value
-can be assigned instead using the passed default setter `set`.
+By default, a **setter** is passive: after being called, the passed value will
+automatically be set to the property's respective endpoint. However, a setter
+can return `true` to prevent the value from being set. In addition, a
+modified/custom value can be assigned instead using the passed default setter
+`set` (after which `true` should always be returned to prevent setting a value
+twice).
 
 A **getter** analogously only observes the fetched values passively by default,
 being given the value of the underlying endpoint when a property is fetched.
-Any return value other than a nullish value (`null` or `undefined`) will yield
-this value to the caller.
+However, any return value other than a nullish value (`null` or `undefined`)
+will yield this value to the caller.
 
-In this example, any assigned value that isn't a number will be discarded, while
-numbers will always be clamped to the range [0, 100]. When fetched, they will be
-rounded to the nearest 5:
+Here, any assigned value that isn't a number will be discarded, while numbers
+will always be clamped to the range [0, 100]. When fetched, they will be rounded
+to the nearest 5:
 ```js
 const storage = new ReactiveStorage({
   depth: Infinity,
@@ -433,10 +428,9 @@ console.log(storage.target.foo) // 50
 ```
 
 ### Multiple sequential targets
-By passing not just one but multiple configuration objects, it's easy to setup
-multiple target points, each with their own configuration, that a value is
-sequentially routed through until it reaches the endpoint. This is also
-explained in [Concepts](#concepts) as horizontal scaling. Only the last
+It's easy to setup multiple target points by passing multiple respective
+configurations, which a value is sequentially routed through until it reaches
+the endpoint (See "horizontal scaling" in [Concepts](#concepts)). Only the last
 configuration may define the `endpoint` property – In all others, it will be
 overridden.
 
