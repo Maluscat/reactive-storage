@@ -167,7 +167,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      *
      * @default {@link Filter.objectLiteralOrArray}
      */
-    depthFilter?: FilterFunction;
+    depthFilter?: false | FilterFunction;
     /**
      * Whether registered properties should be enumerable inside {@link target}.
      * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -238,7 +238,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
     /**
      * Called *after* a value has been set.
      */
-    postSetter?: (event: PostSetterEvent) => void;
+    postSetter?: false | ((event: PostSetterEvent) => void);
     /**
      * Called *before* a value is set.
      *
@@ -246,7 +246,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * This can be useful to filter specific values or when setting them manually,
      * in which case the passed {@link SetterEvent.set} is useful.
      */
-    setter?: (event: SetterEvent) => void | boolean;
+    setter?: false | ((event: SetterEvent) => void | boolean);
     /**
      * Called anytime a value is fetched.
      *
@@ -268,7 +268,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * // "GET 8"
      * ```
      */
-    getter?: (event: GetterEvent) => any;
+    getter?: false | ((event: GetterEvent) => any);
 }
 /**
  * Provides some useful filter functions for use in
@@ -282,6 +282,17 @@ export declare const Filter: {
     /** Matches everything (always returns true). */
     readonly any: () => true;
 };
+/**
+ * Reactivity helper to register, observe and intercept deeply reactive data
+ * without proxies.
+ *
+ * Reactive properties are registered using either the instance methods
+ * {@link ReactiveStorage#register} or {@link ReactiveStorage#registerFrom}
+ * after passing a configuration to the constructor, or using the static methods
+ * {@link ReactiveStorage.register}, {@link ReactiveStorage.registerFrom},
+ * {@link ReactiveStorage.registerRecursive} or
+ * {@link ReactiveStorage.registerRecursiveFrom}.
+ */
 export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> implements RegistrationData<KV> {
     #private;
     /** @see {@link Filter} */

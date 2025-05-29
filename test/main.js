@@ -506,6 +506,44 @@ describe('Configuration', () => {
   })
 });
 
+describe('Configuration', () => {
+  describe("Depth inheritance", () => {
+    it('Stop inheritance with explicit `false`', () => {
+      let post = 0;
+      let set = 0;
+      let get = 0;
+      const config = {
+        endpoint: {},
+        target: {},
+        enumerable: false,
+        postSetter: () => {
+          post++;
+        },
+        setter: () => {
+          set++;
+        },
+        getter: () => {
+          get++;
+        },
+        depth: {
+          postSetter: false,
+          setter: false,
+          getter: false,
+        },
+      }
+      const s = create(config);
+
+      s.register('foo', [[1]]);
+      assert.equal(post, 1);
+      assert.equal(set, 1);
+      assert.equal(get, 0);
+
+      s.target.foo;
+      assert.equal(get, 1);
+    });
+  });
+});
+
 describe('Endpoint', () => {
   it('Base', () => {
     const c = ReactiveStorage.register('foo', 3);

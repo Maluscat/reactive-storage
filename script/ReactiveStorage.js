@@ -12,6 +12,17 @@ export const Filter = {
     /** Matches everything (always returns true). */
     any: () => true,
 };
+/**
+ * Reactivity helper to register, observe and intercept deeply reactive data
+ * without proxies.
+ *
+ * Reactive properties are registered using either the instance methods
+ * {@link ReactiveStorage#register} or {@link ReactiveStorage#registerFrom}
+ * after passing a configuration to the constructor, or using the static methods
+ * {@link ReactiveStorage.register}, {@link ReactiveStorage.registerFrom},
+ * {@link ReactiveStorage.registerRecursive} or
+ * {@link ReactiveStorage.registerRecursiveFrom}.
+ */
 export class ReactiveStorage {
     /** @see {@link Filter} */
     static Filter = Filter;
@@ -167,9 +178,9 @@ export class ReactiveStorage {
         const target = config.target || {};
         const endpoint = config.endpoint || {};
         const depthFilter = config.depthFilter || Filter.objectLiteralOrArray;
-        const customGetter = config.getter;
-        const customSetter = config.setter;
-        const customPostSetter = config.postSetter;
+        const customGetter = config.getter || undefined;
+        const customSetter = config.setter || undefined;
+        const customPostSetter = config.postSetter || undefined;
         let getter = ReactiveStorage.#makeGetter(endpoint, key);
         let setter = ReactiveStorage.#makeSetter(endpoint, key);
         let hasCustomDepthEndpoint = false;
@@ -189,11 +200,19 @@ export class ReactiveStorage {
                 depthOpts = Object.assign({}, config.depth);
             }
             hasCustomDepthEndpoint = !!depthOpts.endpoint;
-            depthOpts.setter ||= config.setter;
-            depthOpts.getter ||= config.getter;
-            depthOpts.postSetter ||= config.postSetter;
-            depthOpts.enumerable ||= config.enumerable;
-            depthOpts.depthFilter ||= config.depthFilter;
+            depthOpts.enumerable ??= config.enumerable;
+            depthOpts.setter ??= config.setter;
+            depthOpts.getter ??= config.getter;
+            depthOpts.postSetter ??= config.postSetter;
+            depthOpts.depthFilter ??= config.depthFilter;
+            if (depthOpts.setter === false)
+                depthOpts.setter = undefined;
+            if (depthOpts.getter === false)
+                depthOpts.getter = undefined;
+            if (depthOpts.postSetter === false)
+                depthOpts.postSetter = undefined;
+            if (depthOpts.depthFilter === false)
+                depthOpts.depthFilter = undefined;
         }
         Object.defineProperty(target, key, {
             configurable: true,

@@ -173,7 +173,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    *
    * @default {@link Filter.objectLiteralOrArray}
    */
-  depthFilter?: FilterFunction;
+  depthFilter?: false | FilterFunction;
   /**
    * Whether registered properties should be enumerable inside {@link target}.
    * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -244,7 +244,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
   /**
    * Called *after* a value has been set.
    */
-  postSetter?: (event: PostSetterEvent) => void;
+  postSetter?: false | ((event: PostSetterEvent) => void);
   /**
    * Called *before* a value is set.
    *
@@ -252,7 +252,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    * This can be useful to filter specific values or when setting them manually,
    * in which case the passed {@link SetterEvent.set} is useful.
    */
-  setter?: (event: SetterEvent) => void | boolean;
+  setter?: false | ((event: SetterEvent) => void | boolean);
   /**
    * Called anytime a value is fetched.
    *
@@ -274,7 +274,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    * // "GET 8"
    * ```
    */
-  getter?: (event: GetterEvent) => any;
+  getter?: false | ((event: GetterEvent) => any);
 }
 
 /**
@@ -507,9 +507,9 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     const target = config.target || {} as Target<KV>;
     const endpoint = config.endpoint || {} as Endpoint;
     const depthFilter = config.depthFilter || Filter.objectLiteralOrArray;
-    const customGetter = config.getter;
-    const customSetter = config.setter;
-    const customPostSetter = config.postSetter;
+    const customGetter = config.getter || undefined;
+    const customSetter = config.setter || undefined;
+    const customPostSetter = config.postSetter || undefined;
     let getter = ReactiveStorage.#makeGetter(endpoint, key);
     let setter = ReactiveStorage.#makeSetter(endpoint, key);
     let hasCustomDepthEndpoint = false;
@@ -529,11 +529,15 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
       }
       hasCustomDepthEndpoint = !!depthOpts.endpoint;
 
-      depthOpts.setter ||= config.setter;
-      depthOpts.getter ||= config.getter;
-      depthOpts.postSetter ||= config.postSetter;
-      depthOpts.enumerable ||= config.enumerable;
-      depthOpts.depthFilter ||= config.depthFilter;
+      depthOpts.enumerable ??= config.enumerable;
+      depthOpts.setter ??= config.setter;
+      depthOpts.getter ??= config.getter;
+      depthOpts.postSetter ??= config.postSetter;
+      depthOpts.depthFilter ??= config.depthFilter;
+      if (depthOpts.setter === false) depthOpts.setter = undefined;
+      if (depthOpts.getter === false) depthOpts.getter = undefined;
+      if (depthOpts.postSetter === false) depthOpts.postSetter = undefined;
+      if (depthOpts.depthFilter === false) depthOpts.depthFilter = undefined;
     }
 
     Object.defineProperty(target, key, {
