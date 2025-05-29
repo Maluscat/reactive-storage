@@ -28,7 +28,7 @@ export type Target<KV> = {
  *
  * @see {@link OptionsWhole}
  */
-export type Configuration<KV extends Record<ObjectKey, any>> = Options<KV> | [
+export type Configuration<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = Options<KV> | [
     ...Omit<Options<KV>, 'endpoint'>[],
     Options<KV>
 ];
