@@ -120,6 +120,7 @@ export interface SetterEvent extends PostSetterEvent {
   set: (val: any) => void
 }
 
+/** @see {@link OptionsWhole} */
 export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
   [ Prop in keyof OptionsWhole<KV> ]?: Prop extends 'depth'
     ? number | Options<KV>
@@ -173,7 +174,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    *
    * @default {@link Filter.objectLiteralOrArray}
    */
-  depthFilter?: false | FilterFunction;
+  depthFilter?: 'inherit' | FilterFunction;
   /**
    * Whether registered properties should be enumerable inside {@link target}.
    * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -244,7 +245,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
   /**
    * Called *after* a value has been set.
    */
-  postSetter?: false | ((event: PostSetterEvent) => void);
+  postSetter?: 'inherit' | ((event: PostSetterEvent) => void);
   /**
    * Called *before* a value is set.
    *
@@ -252,7 +253,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    * This can be useful to filter specific values or when setting them manually,
    * in which case the passed {@link SetterEvent.set} is useful.
    */
-  setter?: false | ((event: SetterEvent) => void | boolean);
+  setter?: 'inherit' | ((event: SetterEvent) => void | boolean);
   /**
    * Called anytime a value is fetched.
    *
@@ -274,7 +275,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    * // "GET 8"
    * ```
    */
-  getter?: false | ((event: GetterEvent) => any);
+  getter?: 'inherit' | ((event: GetterEvent) => any);
 }
 
 /**
@@ -506,10 +507,14 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
   ) {
     const target = config.target || {} as Target<KV>;
     const endpoint = config.endpoint || {} as Endpoint;
-    const depthFilter = config.depthFilter || Filter.objectLiteralOrArray;
-    const customGetter = config.getter || undefined;
-    const customSetter = config.setter || undefined;
-    const customPostSetter = config.postSetter || undefined;
+
+    // These simply discard any potential 'inherit' values
+    const depthFilter = (config.depthFilter !== 'inherit' && config.depthFilter) || Filter.objectLiteralOrArray;
+    const customGetter = (config.getter !== 'inherit' && config.getter) || undefined;
+    const customSetter = (config.setter !== 'inherit' && config.setter) || undefined;
+    const customPostSetter = (config.postSetter !== 'inherit' && config.postSetter) || undefined;
+    const enumerable = config.enumerable != null ? config.enumerable : true;
+
     let getter = ReactiveStorage.#makeGetter(endpoint, key);
     let setter = ReactiveStorage.#makeSetter(endpoint, key);
     let hasCustomDepthEndpoint = false;
@@ -524,25 +529,26 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
         } else if (typeof config.depth === 'number') {
           depthOpts.depth = config.depth - 1;
         }
+        // Inherit properties when `config.depth` is set to a number
+        depthOpts.setter ??= config.setter;
+        depthOpts.getter ??= config.getter;
+        depthOpts.postSetter ??= config.postSetter;
+        depthOpts.depthFilter ??= config.depthFilter;
       } else {
         depthOpts = Object.assign({}, config.depth);
+        if (depthOpts.setter === 'inherit') depthOpts.setter = config.setter;
+        if (depthOpts.getter === 'inherit') depthOpts.getter = config.getter;
+        if (depthOpts.postSetter === 'inherit') depthOpts.postSetter = config.postSetter;
+        if (depthOpts.depthFilter === 'inherit') depthOpts.depthFilter = config.depthFilter;
       }
-      hasCustomDepthEndpoint = !!depthOpts.endpoint;
-
+      // Always inherit `enumerable` unless configured explicitly
       depthOpts.enumerable ??= config.enumerable;
-      depthOpts.setter ??= config.setter;
-      depthOpts.getter ??= config.getter;
-      depthOpts.postSetter ??= config.postSetter;
-      depthOpts.depthFilter ??= config.depthFilter;
-      if (depthOpts.setter === false) depthOpts.setter = undefined;
-      if (depthOpts.getter === false) depthOpts.getter = undefined;
-      if (depthOpts.postSetter === false) depthOpts.postSetter = undefined;
-      if (depthOpts.depthFilter === false) depthOpts.depthFilter = undefined;
+      hasCustomDepthEndpoint = !!depthOpts.endpoint;
     }
 
     Object.defineProperty(target, key, {
       configurable: true,
-      enumerable: config.enumerable || true,
+      enumerable: enumerable,
       get: () => {
         // Request the value via the getter only exactly once!
         const val = getter();

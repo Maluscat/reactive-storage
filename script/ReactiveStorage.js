@@ -177,10 +177,12 @@ export class ReactiveStorage {
     static #register(key, initialValue, config, recursive, path = [key]) {
         const target = config.target || {};
         const endpoint = config.endpoint || {};
-        const depthFilter = config.depthFilter || Filter.objectLiteralOrArray;
-        const customGetter = config.getter || undefined;
-        const customSetter = config.setter || undefined;
-        const customPostSetter = config.postSetter || undefined;
+        // These simply discard any potential 'inherit' values
+        const depthFilter = (config.depthFilter !== 'inherit' && config.depthFilter) || Filter.objectLiteralOrArray;
+        const customGetter = (config.getter !== 'inherit' && config.getter) || undefined;
+        const customSetter = (config.setter !== 'inherit' && config.setter) || undefined;
+        const customPostSetter = (config.postSetter !== 'inherit' && config.postSetter) || undefined;
+        const enumerable = config.enumerable != null ? config.enumerable : true;
         let getter = ReactiveStorage.#makeGetter(endpoint, key);
         let setter = ReactiveStorage.#makeSetter(endpoint, key);
         let hasCustomDepthEndpoint = false;
@@ -195,28 +197,30 @@ export class ReactiveStorage {
                 else if (typeof config.depth === 'number') {
                     depthOpts.depth = config.depth - 1;
                 }
+                // Inherit properties when `config.depth` is set to a number
+                depthOpts.setter ??= config.setter;
+                depthOpts.getter ??= config.getter;
+                depthOpts.postSetter ??= config.postSetter;
+                depthOpts.depthFilter ??= config.depthFilter;
             }
             else {
                 depthOpts = Object.assign({}, config.depth);
+                if (depthOpts.setter === 'inherit')
+                    depthOpts.setter = config.setter;
+                if (depthOpts.getter === 'inherit')
+                    depthOpts.getter = config.getter;
+                if (depthOpts.postSetter === 'inherit')
+                    depthOpts.postSetter = config.postSetter;
+                if (depthOpts.depthFilter === 'inherit')
+                    depthOpts.depthFilter = config.depthFilter;
             }
-            hasCustomDepthEndpoint = !!depthOpts.endpoint;
+            // Always inherit `enumerable` unless configured explicitly
             depthOpts.enumerable ??= config.enumerable;
-            depthOpts.setter ??= config.setter;
-            depthOpts.getter ??= config.getter;
-            depthOpts.postSetter ??= config.postSetter;
-            depthOpts.depthFilter ??= config.depthFilter;
-            if (depthOpts.setter === false)
-                depthOpts.setter = undefined;
-            if (depthOpts.getter === false)
-                depthOpts.getter = undefined;
-            if (depthOpts.postSetter === false)
-                depthOpts.postSetter = undefined;
-            if (depthOpts.depthFilter === false)
-                depthOpts.depthFilter = undefined;
+            hasCustomDepthEndpoint = !!depthOpts.endpoint;
         }
         Object.defineProperty(target, key, {
             configurable: true,
-            enumerable: config.enumerable || true,
+            enumerable: enumerable,
             get: () => {
                 // Request the value via the getter only exactly once!
                 const val = getter();

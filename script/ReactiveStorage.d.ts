@@ -117,6 +117,7 @@ export interface SetterEvent extends PostSetterEvent {
      */
     set: (val: any) => void;
 }
+/** @see {@link OptionsWhole} */
 export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
     [Prop in keyof OptionsWhole<KV>]?: Prop extends 'depth' ? number | Options<KV> : OptionsWhole<KV>[Prop];
 };
@@ -167,7 +168,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      *
      * @default {@link Filter.objectLiteralOrArray}
      */
-    depthFilter?: false | FilterFunction;
+    depthFilter?: 'inherit' | FilterFunction;
     /**
      * Whether registered properties should be enumerable inside {@link target}.
      * Corresponds to {@link PropertyDescriptor.enumerable}.
@@ -238,7 +239,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
     /**
      * Called *after* a value has been set.
      */
-    postSetter?: false | ((event: PostSetterEvent) => void);
+    postSetter?: 'inherit' | ((event: PostSetterEvent) => void);
     /**
      * Called *before* a value is set.
      *
@@ -246,7 +247,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * This can be useful to filter specific values or when setting them manually,
      * in which case the passed {@link SetterEvent.set} is useful.
      */
-    setter?: false | ((event: SetterEvent) => void | boolean);
+    setter?: 'inherit' | ((event: SetterEvent) => void | boolean);
     /**
      * Called anytime a value is fetched.
      *
@@ -268,7 +269,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * // "GET 8"
      * ```
      */
-    getter?: false | ((event: GetterEvent) => any);
+    getter?: 'inherit' | ((event: GetterEvent) => any);
 }
 /**
  * Provides some useful filter functions for use in
