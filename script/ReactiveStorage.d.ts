@@ -36,9 +36,9 @@ export interface RegistrationData<KV extends Record<ObjectKey, any>> {
     /**
      * The endpoint holding the actual data of the registered properties.
      *
-     * @see {@link OptionsWhole.endpoint}
+     * @see {@link OptionsWhole.shallowEndpoint}
      */
-    endpoint: Endpoint;
+    shallowEndpoint: Endpoint;
     /**
      * The first access point for registered properties.
      * Always the first element of {@link targets}.
@@ -58,7 +58,7 @@ export interface RegistrationData<KV extends Record<ObjectKey, any>> {
 }
 /** {@link Options.getter} event argument. */
 export interface GetterEvent {
-    /** Value that was fetched, from the underlying endpoint. */
+    /** Value that was fetched from the underlying endpoint. */
     val: any;
     /**
      * Key path of the property in question, starting with the registered key.
@@ -119,7 +119,7 @@ export interface SetterEvent extends PostSetterEvent {
 }
 /** @see {@link OptionsWhole} */
 export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
-    [Prop in keyof OptionsWhole<KV>]?: Prop extends 'depth' ? number | Options<KV> : OptionsWhole<KV>[Prop];
+    [Prop in keyof OptionsWhole<KV>]?: Prop extends 'depth' ? number | Omit<Options<KV>, 'target' | 'shallowEndpoint'> : OptionsWhole<KV>[Prop];
 };
 export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
     /**
@@ -127,12 +127,15 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * data, so an object that the configured setter and getter will deposit the
      * value to and fetch the value from, respectively.
      *
+     * *Important*: This endpoint is *shallow*, meaning that deep properties will
+     * NOT be represented correctly. Use it only in a shallow configuration!
+     *
      * @default {}
      */
-    endpoint: Endpoint;
+    shallowEndpoint: Endpoint;
     /**
      * An object that represents the access point for the registered properties.
-     * Values are deposited at the specified {@link endpoint}.
+     * Values are deposited at the specified {@link shallowEndpoint}.
      * @default {}
      */
     target: Target<KV>;
@@ -235,7 +238,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      *
      * @default 0
      */
-    depth?: number | Omit<OptionsWhole, 'target'>;
+    depth?: number | Omit<OptionsWhole, 'target' | 'shallowEndpoint'>;
     /**
      * Called *after* a value has been set.
      */
@@ -303,14 +306,14 @@ export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> implemen
         /** Matches everything (always returns true). */
         readonly any: () => true;
     };
-    readonly endpoint: Endpoint;
+    readonly shallowEndpoint: Endpoint;
     readonly target: Target<KV>;
     readonly targets: Target<KV>[];
     readonly config: OptionsWhole<KV>[];
     constructor(config?: Configuration<KV>);
     /** Check for existence of a registered property on {@link target}. */
     has(key: ObjectKey): boolean;
-    /** Delete {@link target} and {@link endpoint} entry of a registered property. */
+    /** Delete {@link target} and {@link shallowEndpoint} entry of a registered property. */
     delete(key: ObjectKey): boolean;
     /**
      * Register one or multiple reactive properties according to the current
@@ -334,9 +337,9 @@ export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> implemen
      */
     registerFrom(object: Partial<KV>): this;
     /**
-     * Register a reactive property one or multiple targets that point to an
-     * endpoint. If left unspecified, target and/or endpoint will be a new object
-     * that can be obtained using the returned data.
+     * Register a reactive property on or multiple targets. If left unspecified,
+     * target and/or shallow endpoint will be a new object that can be obtained
+     * using the returned data.
      *
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
@@ -348,8 +351,8 @@ export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> implemen
     static register<KV extends Record<K, V>, K extends ObjectKey = keyof KV, V extends any = KV[K]>(key: K | K[], initialValue?: V, config?: Configuration<KV>): RegistrationData<KV>;
     /**
      * Register all property keys and symbols of the given object with their
-     * respective values. If left unspecified, target and/or endpoint will be a
-     * new object that can be obtained using the returned data.
+     * respective values. If left unspecified, target and/or shallow endpoint
+     * will be a new object that can be obtained using the returned data.
      *
      * @param object The object the keys and symbols of will be registered.
      */

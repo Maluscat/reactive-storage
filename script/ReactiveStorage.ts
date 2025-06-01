@@ -37,9 +37,9 @@ export interface RegistrationData<KV extends Record<ObjectKey, any>> {
   /**
    * The endpoint holding the actual data of the registered properties.
    *
-   * @see {@link OptionsWhole.endpoint}
+   * @see {@link OptionsWhole.shallowEndpoint}
    */
-  endpoint: Endpoint;
+  shallowEndpoint: Endpoint;
   /**
    * The first access point for registered properties.
    * Always the first element of {@link targets}.
@@ -60,7 +60,7 @@ export interface RegistrationData<KV extends Record<ObjectKey, any>> {
 
 /** {@link Options.getter} event argument. */
 export interface GetterEvent {
-  /** Value that was fetched, from the underlying endpoint. */
+  /** Value that was fetched from the underlying endpoint. */
   val: any;
   /**
    * Key path of the property in question, starting with the registered key.
@@ -123,7 +123,7 @@ export interface SetterEvent extends PostSetterEvent {
 /** @see {@link OptionsWhole} */
 export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
   [ Prop in keyof OptionsWhole<KV> ]?: Prop extends 'depth'
-    ? number | Options<KV>
+    ? number | Omit<Options<KV>, 'target' | 'shallowEndpoint'>
     : OptionsWhole<KV>[Prop]
 }
 
@@ -133,12 +133,15 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    * data, so an object that the configured setter and getter will deposit the
    * value to and fetch the value from, respectively.
    *
+   * *Important*: This endpoint is *shallow*, meaning that deep properties will
+   * NOT be represented correctly. Use it only in a shallow configuration!
+   *
    * @default {}
    */
-  endpoint: Endpoint;
+  shallowEndpoint: Endpoint;
   /**
    * An object that represents the access point for the registered properties.
-   * Values are deposited at the specified {@link endpoint}.
+   * Values are deposited at the specified {@link shallowEndpoint}.
    * @default {}
    */
   target: Target<KV>;
@@ -241,7 +244,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
    *
    * @default 0
    */
-  depth?: number | Omit<OptionsWhole, 'target'>;
+  depth?: number | Omit<OptionsWhole, 'target' | 'shallowEndpoint'>;
   /**
    * Called *after* a value has been set.
    */
@@ -308,7 +311,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
   /** @see {@link Filter} */
   static readonly Filter = Filter;
 
-  readonly endpoint;
+  readonly shallowEndpoint;
   readonly target;
   readonly targets;
   readonly config;
@@ -316,7 +319,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
   constructor(config: Configuration<KV> = {}) {
     this.config = ReactiveStorage.#prepareConfig(config);
     const data = ReactiveStorage.#getDataFromConfigs(this.config);
-    this.endpoint = data.endpoint;
+    this.shallowEndpoint = data.shallowEndpoint;
     this.target = data.target
     this.targets = data.targets;
   }
@@ -325,13 +328,13 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
   has(key: ObjectKey) {
     return Object.prototype.hasOwnProperty.call(this.target, key);
   }
-  /** Delete {@link target} and {@link endpoint} entry of a registered property. */
+  /** Delete {@link target} and {@link shallowEndpoint} entry of a registered property. */
   delete(key: ObjectKey) {
     if (this.has(key)) {
-      if (this.endpoint instanceof Map) {
-        this.endpoint.delete(key);
+      if (this.shallowEndpoint instanceof Map) {
+        this.shallowEndpoint.delete(key);
       } else {
-        delete this.endpoint[key];
+        delete this.shallowEndpoint[key];
       }
       for (const target of this.targets) {
         // @ts-ignore Checked for property existence above
@@ -378,9 +381,9 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
 
   // ---- Static methods ----
   /**
-   * Register a reactive property one or multiple targets that point to an
-   * endpoint. If left unspecified, target and/or endpoint will be a new object
-   * that can be obtained using the returned data.
+   * Register a reactive property on or multiple targets. If left unspecified,
+   * target and/or shallow endpoint will be a new object that can be obtained
+   * using the returned data.
    *
    * @param key The property name to register.
    * @param initialValue The initial value that will be assigned after registering.
@@ -404,8 +407,8 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
   }
   /**
    * Register all property keys and symbols of the given object with their
-   * respective values. If left unspecified, target and/or endpoint will be a
-   * new object that can be obtained using the returned data.
+   * respective values. If left unspecified, target and/or shallow endpoint
+   * will be a new object that can be obtained using the returned data.
    *
    * @param object The object the keys and symbols of will be registered.
    */
@@ -506,7 +509,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     path: ObjectKey[] = [key]
   ) {
     const target = config.target || {} as Target<KV>;
-    const endpoint = config.endpoint || {} as Endpoint;
+    const endpoint = config.shallowEndpoint || {} as Endpoint;
 
     // These simply discard any potential 'inherit' values
     const depthFilter = (config.depthFilter !== 'inherit' && config.depthFilter) || Filter.objectLiteralOrArray;
@@ -517,7 +520,6 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
 
     let getter = ReactiveStorage.#makeGetter(endpoint, key);
     let setter = ReactiveStorage.#makeSetter(endpoint, key);
-    let hasCustomDepthEndpoint = false;
     let initial = true;
 
     let depthOpts: undefined | Options;
@@ -536,6 +538,8 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
         depthOpts.depthFilter ??= config.depthFilter;
       } else {
         depthOpts = Object.assign({}, config.depth);
+        if (depthOpts.target) delete depthOpts.target;
+        if (depthOpts.shallowEndpoint) delete depthOpts.shallowEndpoint;
         if (depthOpts.setter === 'inherit') depthOpts.setter = config.setter;
         if (depthOpts.getter === 'inherit') depthOpts.getter = config.getter;
         if (depthOpts.postSetter === 'inherit') depthOpts.postSetter = config.postSetter;
@@ -543,7 +547,6 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
       }
       // Always inherit `enumerable` unless configured explicitly
       depthOpts.enumerable ??= config.enumerable;
-      hasCustomDepthEndpoint = !!depthOpts.endpoint;
     }
 
     Object.defineProperty(target, key, {
@@ -560,14 +563,11 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
           setter(val);
         }
         if (!!depthOpts && typeof val === 'object' && depthFilter(val, path)) {
-          if (!hasCustomDepthEndpoint) {
-            // For the endpoint, use the object of the desired depth within the
-            // existing endpoint hierarchy instead of creating a new object.
-            depthOpts.endpoint = getter();
-          }
           // We don't need to save the deep target anywhere
           // because it is exposed via the updated getter below
           depthOpts.target = Array.isArray(val) ? [] : {};
+          depthOpts.shallowEndpoint = {};
+
           for (const propKey of Object.keys(val)) {
             this.#register(propKey, val[propKey], depthOpts, recursive, [ ...path, propKey ]);
           }
@@ -626,18 +626,18 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
         config[i] = Object.assign({ target: {} }, config[i]);
         if (i > 0) {
           // @ts-ignore
-          config[i - 1].endpoint = config[i].target;
+          config[i - 1].shallowEndpoint = config[i].target;
         }
       }
       // @ts-ignore
-      config[config.length - 1].endpoint ||= {};
+      config[config.length - 1].shallowEndpoint ||= {};
       return config as OptionsWhole<KV>[];
     } else {
       return [
         Object.assign({
           target: {},
-          endpoint: {},
-        }, config) as OptionsWhole<KV>
+          shallowEndpoint: {},
+        } as Options<KV>, config) as OptionsWhole<KV>
       ];
     }
   }
@@ -646,7 +646,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     config: OptionsWhole<KV>[]
   ): RegistrationData<KV> {
     return {
-      endpoint: config[config.length - 1].endpoint,
+      shallowEndpoint: config[config.length - 1].shallowEndpoint,
       target: config[0].target,
       targets: config.map(conf => conf.target),
     }

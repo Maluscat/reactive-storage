@@ -26,14 +26,14 @@ export const Filter = {
 export class ReactiveStorage {
     /** @see {@link Filter} */
     static Filter = Filter;
-    endpoint;
+    shallowEndpoint;
     target;
     targets;
     config;
     constructor(config = {}) {
         this.config = ReactiveStorage.#prepareConfig(config);
         const data = ReactiveStorage.#getDataFromConfigs(this.config);
-        this.endpoint = data.endpoint;
+        this.shallowEndpoint = data.shallowEndpoint;
         this.target = data.target;
         this.targets = data.targets;
     }
@@ -41,14 +41,14 @@ export class ReactiveStorage {
     has(key) {
         return Object.prototype.hasOwnProperty.call(this.target, key);
     }
-    /** Delete {@link target} and {@link endpoint} entry of a registered property. */
+    /** Delete {@link target} and {@link shallowEndpoint} entry of a registered property. */
     delete(key) {
         if (this.has(key)) {
-            if (this.endpoint instanceof Map) {
-                this.endpoint.delete(key);
+            if (this.shallowEndpoint instanceof Map) {
+                this.shallowEndpoint.delete(key);
             }
             else {
-                delete this.endpoint[key];
+                delete this.shallowEndpoint[key];
             }
             for (const target of this.targets) {
                 // @ts-ignore Checked for property existence above
@@ -92,9 +92,9 @@ export class ReactiveStorage {
     }
     // ---- Static methods ----
     /**
-     * Register a reactive property one or multiple targets that point to an
-     * endpoint. If left unspecified, target and/or endpoint will be a new object
-     * that can be obtained using the returned data.
+     * Register a reactive property on or multiple targets. If left unspecified,
+     * target and/or shallow endpoint will be a new object that can be obtained
+     * using the returned data.
      *
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
@@ -110,8 +110,8 @@ export class ReactiveStorage {
     }
     /**
      * Register all property keys and symbols of the given object with their
-     * respective values. If left unspecified, target and/or endpoint will be a
-     * new object that can be obtained using the returned data.
+     * respective values. If left unspecified, target and/or shallow endpoint
+     * will be a new object that can be obtained using the returned data.
      *
      * @param object The object the keys and symbols of will be registered.
      */
@@ -176,7 +176,7 @@ export class ReactiveStorage {
     }
     static #register(key, initialValue, config, recursive, path = [key]) {
         const target = config.target || {};
-        const endpoint = config.endpoint || {};
+        const endpoint = config.shallowEndpoint || {};
         // These simply discard any potential 'inherit' values
         const depthFilter = (config.depthFilter !== 'inherit' && config.depthFilter) || Filter.objectLiteralOrArray;
         const customGetter = (config.getter !== 'inherit' && config.getter) || undefined;
@@ -185,7 +185,6 @@ export class ReactiveStorage {
         const enumerable = config.enumerable != null ? config.enumerable : true;
         let getter = ReactiveStorage.#makeGetter(endpoint, key);
         let setter = ReactiveStorage.#makeSetter(endpoint, key);
-        let hasCustomDepthEndpoint = false;
         let initial = true;
         let depthOpts;
         if (config.depth || recursive) {
@@ -205,6 +204,10 @@ export class ReactiveStorage {
             }
             else {
                 depthOpts = Object.assign({}, config.depth);
+                if (depthOpts.target)
+                    delete depthOpts.target;
+                if (depthOpts.shallowEndpoint)
+                    delete depthOpts.shallowEndpoint;
                 if (depthOpts.setter === 'inherit')
                     depthOpts.setter = config.setter;
                 if (depthOpts.getter === 'inherit')
@@ -216,7 +219,6 @@ export class ReactiveStorage {
             }
             // Always inherit `enumerable` unless configured explicitly
             depthOpts.enumerable ??= config.enumerable;
-            hasCustomDepthEndpoint = !!depthOpts.endpoint;
         }
         Object.defineProperty(target, key, {
             configurable: true,
@@ -232,14 +234,10 @@ export class ReactiveStorage {
                     setter(val);
                 }
                 if (!!depthOpts && typeof val === 'object' && depthFilter(val, path)) {
-                    if (!hasCustomDepthEndpoint) {
-                        // For the endpoint, use the object of the desired depth within the
-                        // existing endpoint hierarchy instead of creating a new object.
-                        depthOpts.endpoint = getter();
-                    }
                     // We don't need to save the deep target anywhere
                     // because it is exposed via the updated getter below
                     depthOpts.target = Array.isArray(val) ? [] : {};
+                    depthOpts.shallowEndpoint = {};
                     for (const propKey of Object.keys(val)) {
                         this.#register(propKey, val[propKey], depthOpts, recursive, [...path, propKey]);
                     }
@@ -298,25 +296,25 @@ export class ReactiveStorage {
                 config[i] = Object.assign({ target: {} }, config[i]);
                 if (i > 0) {
                     // @ts-ignore
-                    config[i - 1].endpoint = config[i].target;
+                    config[i - 1].shallowEndpoint = config[i].target;
                 }
             }
             // @ts-ignore
-            config[config.length - 1].endpoint ||= {};
+            config[config.length - 1].shallowEndpoint ||= {};
             return config;
         }
         else {
             return [
                 Object.assign({
                     target: {},
-                    endpoint: {},
+                    shallowEndpoint: {},
                 }, config)
             ];
         }
     }
     static #getDataFromConfigs(config) {
         return {
-            endpoint: config[config.length - 1].endpoint,
+            shallowEndpoint: config[config.length - 1].shallowEndpoint,
             target: config[0].target,
             targets: config.map(conf => conf.target),
         };

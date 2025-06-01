@@ -13,47 +13,55 @@ function assertHasValue(obj, prop) {
   assert.property(obj, prop);
   assert.property(Object.getOwnPropertyDescriptor(obj, prop), 'value');
 }
+function assertIsEnumerable(obj, prop) {
+  assert.property(obj, prop);
+  assert.isTrue(Object.getOwnPropertyDescriptor(obj, prop).enumerable);
+}
+function assertIsNotEnumerable(obj, prop) {
+  assert.property(obj, prop);
+  assert.isFalse(Object.getOwnPropertyDescriptor(obj, prop).enumerable);
+}
 
 describe('register(...)/registerRecursive(...)', () => {
   it('Shallow', () => {
     const c = ReactiveStorage.register('foo', 3);
 
     assert.equal(c.target.foo, 3);
-    assert.equal(c.endpoint.foo, 3);
+    assert.equal(c.shallowEndpoint.foo, 3);
 
     c.target.foo = 'bar';
     assert.equal(c.target.foo, 'bar');
-    assert.equal(c.endpoint.foo, 'bar');
+    assert.equal(c.shallowEndpoint.foo, 'bar');
   });
   it('Shallow with infinite depth', () => {
     const c = ReactiveStorage.register('foo', 3, { depth: Infinity });
 
     assert.equal(c.target.foo, 3);
-    assert.equal(c.endpoint.foo, 3);
+    assert.equal(c.shallowEndpoint.foo, 3);
 
     c.target.foo = 'bar';
     assert.equal(c.target.foo, 'bar');
-    assert.equal(c.endpoint.foo, 'bar');
+    assert.equal(c.shallowEndpoint.foo, 'bar');
   });
   it('Deep with infinite depth', () => {
     const c = ReactiveStorage.register('foo', { bar: { baz: 5 } }, { depth: Infinity });
 
     assert.deepEqual(c.target.foo, { bar: { baz: 5 } });
-    assert.deepEqual(c.endpoint.foo, { bar: { baz: 5 } });
+    assert.deepEqual(c.shallowEndpoint.foo, { bar: { baz: 5 } });
 
     c.target.foo = 'bar';
     assert.deepEqual(c.target.foo, 'bar');
-    assert.deepEqual(c.endpoint.foo, 'bar');
+    assert.deepEqual(c.shallowEndpoint.foo, 'bar');
   });
   it('Deep with `registerRecursive(...)`', () => {
     const c = ReactiveStorage.registerRecursive('foo', { bar: { baz: 5 } });
 
     assert.deepEqual(c.target.foo, { bar: { baz: 5 } });
-    assert.deepEqual(c.endpoint.foo, { bar: { baz: 5 } });
+    assert.deepEqual(c.shallowEndpoint.foo, { bar: { baz: 5 } });
 
     c.target.foo = 'bar';
     assert.deepEqual(c.target.foo, 'bar');
-    assert.deepEqual(c.endpoint.foo, 'bar');
+    assert.deepEqual(c.shallowEndpoint.foo, 'bar');
   });
   it('Infinite depth: setter', () => {
     let i = 0;
@@ -105,31 +113,31 @@ describe('register(...)/registerRecursive(...)', () => {
     describe('Static methods', () => {
       it('register(...)', () => {
         const target = {};
-        const endpoint = {};
-        const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
-        assert.hasAllKeys(c, [ 'target', 'targets', 'endpoint' ]);
+        const shallowEndpoint = {};
+        const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, shallowEndpoint });
+        assert.hasAllKeys(c, [ 'target', 'targets', 'shallowEndpoint' ]);
         assert.equal(c.target, target);
         assert.equal(c.targets[0], target);
-        assert.equal(c.endpoint, endpoint);
+        assert.equal(c.shallowEndpoint, shallowEndpoint);
       });
       it('registerRecursive(...)', () => {
         const target = {};
-        const endpoint = {};
-        const c0 = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
-        const c1 = ReactiveStorage.registerRecursive([ 'foo', 'bar', 'baz' ], undefined, { target, endpoint });
+        const shallowEndpoint = {};
+        const c0 = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, { target, shallowEndpoint });
+        const c1 = ReactiveStorage.registerRecursive([ 'foo', 'bar', 'baz' ], undefined, { target, shallowEndpoint });
         assert.equal(c0.target, c1.target);
-        assert.equal(c0.endpoint, c1.endpoint);
+        assert.equal(c0.shallowEndpoint, c1.shallowEndpoint);
         assert.deepEqual(c0.targets, c1.targets);
       });
       it('register(...) with multiple targets', () => {
         const target0 = {};
         const target1 = {};
         const target2 = {};
-        const endpoint = {};
+        const shallowEndpoint = {};
         const c = ReactiveStorage.register([ 'foo', 'bar', 'baz' ], undefined, [
           { target: target0 },
           { target: target1 },
-          { target: target2, endpoint },
+          { target: target2, shallowEndpoint },
         ]);
         assert.equal(c.target, target0);
         assert.lengthOf(c.targets, 3);
@@ -141,8 +149,8 @@ describe('register(...)/registerRecursive(...)', () => {
     describe('Instance', () => {
       it('Base', () => {
         const target = {};
-        const endpoint = {};
-        const s = create({ target, endpoint });
+        const shallowEndpoint = {};
+        const s = create({ target, shallowEndpoint });
         const c = s.register('foo');
         assert.equal(c, s);
       });
@@ -159,10 +167,10 @@ describe('registerFrom(...)/registerRecursiveFrom(...)', () => {
     };
     const c = ReactiveStorage.registerFrom(obj);
     assert.hasAllKeys(c.target, Object.keys(obj));
-    assert.hasAllKeys(c.endpoint, Object.keys(obj));
+    assert.hasAllKeys(c.shallowEndpoint, Object.keys(obj));
     Object.entries(obj).forEach(([key, val]) => {
       assert.equal(c.target[key], val);
-      assert.equal(c.endpoint[key], val);
+      assert.equal(c.shallowEndpoint[key], val);
     });
   });
   it('With Symbols', () => {
@@ -173,7 +181,7 @@ describe('registerFrom(...)/registerRecursiveFrom(...)', () => {
     };
     const c = ReactiveStorage.registerFrom(obj);
     assert.equal(c.target[Symbol.for('baz')], 'lor');
-    assert.equal(c.endpoint[Symbol.for('baz')], 'lor');
+    assert.equal(c.shallowEndpoint[Symbol.for('baz')], 'lor');
   });
   it('With multiple targets', () => {
     const obj = {
@@ -189,7 +197,7 @@ describe('registerFrom(...)/registerRecursiveFrom(...)', () => {
         assert.equal(target[key], val);
       });
     });
-    assert.hasAllKeys(c.endpoint, [ ...Object.getOwnPropertySymbols(obj), ...Object.keys(obj) ]);
+    assert.hasAllKeys(c.shallowEndpoint, [ ...Object.getOwnPropertySymbols(obj), ...Object.keys(obj) ]);
   });
 });
 
@@ -198,11 +206,11 @@ describe('delete(...)', () => {
     const s = create();
     s.register([ 'foo', 'bar', 'baz' ], 3);
     assert.hasAllKeys(s.target, ['foo', 'bar', 'baz']);
-    assert.hasAllKeys(s.endpoint, ['foo', 'bar', 'baz']);
+    assert.hasAllKeys(s.shallowEndpoint, ['foo', 'bar', 'baz']);
 
     s.delete('foo');
     assert.hasAllKeys(s.target, ['bar', 'baz']);
-    assert.hasAllKeys(s.endpoint, ['bar', 'baz']);
+    assert.hasAllKeys(s.shallowEndpoint, ['bar', 'baz']);
   });
   it('Returns `true` on a successful delete', () => {
     const s = create();
@@ -225,7 +233,7 @@ describe('has(...)', () => {
     const s = create();
     s.register([ 'foo', 'bar', 'baz' ], 3);
     assert.hasAllKeys(s.target, ['foo', 'bar', 'baz']);
-    assert.hasAllKeys(s.endpoint, ['foo', 'bar', 'baz']);
+    assert.hasAllKeys(s.shallowEndpoint, ['foo', 'bar', 'baz']);
 
     assert.isTrue(s.has('foo'));
     assert.isTrue(s.has('bar'));
@@ -242,49 +250,49 @@ describe('Constructor', () => {
   it('Default `endpoint` and `target` if not passed', () => {
     const s = create();
     assert.deepEqual(s.target, {}, "Target");
-    assert.deepEqual(s.endpoint, {}, "Endpoint");
+    assert.deepEqual(s.shallowEndpoint, {}, "Endpoint");
   });
   it('Store `endpoint` and `target` as instance properties', () => {
-    const endpoint = [];
+    const shallowEndpoint = [];
     const target = [];
-    const s = create({ target, endpoint });
-    assert.equal(s.endpoint, endpoint);
+    const s = create({ target, shallowEndpoint });
+    assert.equal(s.shallowEndpoint, shallowEndpoint);
     assert.equal(s.target, target);
   });
   it('Instance `target` and `endpoint` point to config', () => {
     const s = create();
     assert.equal(s.target, s.config[0].target);
-    assert.equal(s.endpoint, s.config.at(-1).endpoint);
+    assert.equal(s.shallowEndpoint, s.config.at(-1).shallowEndpoint);
   });
   describe('Config', () => {
     it('Store a shallow copy of a passed config as instance property', () => {
       const config = {
-        endpoint: [],
+        shallowEndpoint: [],
         target: [],
       }
       const s = create(config);
       assert.isArray(s.config);
       assert.deepEqual(s.config, [ config ]);
       assert.equal(s.target, config.target);
-      assert.equal(s.endpoint, config.endpoint);
+      assert.equal(s.shallowEndpoint, config.shallowEndpoint);
     });
     it('Store a shallow copy of a passed definiton chain as instance property', () => {
       const config0 = {
-        endpoint: [],
+        shallowEndpoint: [],
         target: [],
       };
       const config1 = {
-        endpoint: {}
+        shallowEndpoint: {}
       };
       const config2 = {
-        endpoint: {}
+        shallowEndpoint: {}
       };
       const s = create([ config0, config1, config2 ]);
       assert.lengthOf(s.config, 3);
       assert.deepEqual(s.config[0], config0);
-      assert.hasAllKeys(s.config[0], [ 'endpoint', 'target' ]);
-      assert.hasAllKeys(s.config[1], [ 'endpoint', 'target' ]);
-      assert.hasAllKeys(s.config[2], [ 'endpoint', 'target' ]);
+      assert.hasAllKeys(s.config[0], [ 'shallowEndpoint', 'target' ]);
+      assert.hasAllKeys(s.config[1], [ 'shallowEndpoint', 'target' ]);
+      assert.hasAllKeys(s.config[2], [ 'shallowEndpoint', 'target' ]);
     });
   });
 });
@@ -294,8 +302,8 @@ describe('Definition chains', () => {
     const s = create([ {}, {}, {} ]);
     assert.lengthOf(s.config, 3);
     assert.lengthOf(s.targets, 3);
-    assert.exists(s.endpoint);
-    assert.equal(s.endpoint, s.config.at(-1).endpoint);
+    assert.exists(s.shallowEndpoint);
+    assert.equal(s.shallowEndpoint, s.config.at(-1).shallowEndpoint);
   });
   it('Correct calls', () => {
     let g0 = 0;
@@ -324,39 +332,39 @@ describe('Definition chains', () => {
   });
   it('Correct default chaining', () => {
     const s = create([ {}, {}, {} ]);
-    assert.equal(s.config[0].endpoint, s.config[1].target);
-    assert.equal(s.config[1].endpoint, s.config[2].target);
+    assert.equal(s.config[0].shallowEndpoint, s.config[1].target);
+    assert.equal(s.config[1].shallowEndpoint, s.config[2].target);
   });
   it('Correct chaining with passed values', () => {
     const target0 = [];
     const target1 = [];
     const target2 = [];
-    const endpoint = {};
+    const shallowEndpoint = {};
     const s = create([
       { target: target0 },
       { target: target1 },
-      { target: target2, endpoint }
+      { target: target2, shallowEndpoint }
     ]);
     assert.equal(s.config[0].target, target0);
     assert.equal(s.config[1].target, target1);
     assert.equal(s.config[2].target, target2);
-    assert.equal(s.config[0].endpoint, s.config[1].target);
-    assert.equal(s.config[1].endpoint, s.config[2].target);
-    assert.equal(s.config[2].endpoint, endpoint);
+    assert.equal(s.config[0].shallowEndpoint, s.config[1].target);
+    assert.equal(s.config[1].shallowEndpoint, s.config[2].target);
+    assert.equal(s.config[2].shallowEndpoint, shallowEndpoint);
   });
   it('All defined `endpoints` except the last will be dropped', () => {
     const endpoint0 = {};
     const endpoint1 = [];
     const endpoint2 = {};
     const s = new ReactiveStorage([
-      { endpoint: endpoint0 },
-      { endpoint: endpoint1 },
-      { endpoint: endpoint2 }
+      { shallowEndpoint: endpoint0 },
+      { shallowEndpoint: endpoint1 },
+      { shallowEndpoint: endpoint2 }
     ]);
-    assert.notEqual(s.config[0].endpoint, endpoint0);
-    assert.notEqual(s.config[1].endpoint, endpoint1);
-    assert.deepEqual(s.config[0].endpoint, {});
-    assert.deepEqual(s.config[1].endpoint, {});
+    assert.notEqual(s.config[0].shallowEndpoint, endpoint0);
+    assert.notEqual(s.config[1].shallowEndpoint, endpoint1);
+    assert.deepEqual(s.config[0].shallowEndpoint, {});
+    assert.deepEqual(s.config[1].shallowEndpoint, {});
   });
 });
 
@@ -452,7 +460,7 @@ describe('Setter', () => {
           }
         });
         assert.equal(c.target.foo, 'lor');
-        assert.equal(c.endpoint.foo, 'lor');
+        assert.equal(c.shallowEndpoint.foo, 'lor');
 
         c.target.foo = 3;
         assert.equal(c.target.foo, 'lor');
@@ -464,57 +472,152 @@ describe('Setter', () => {
         assert.equal(c.target.foo, 'lor');
       })
     });
+    it('prevVal', () => {
+      let start = false;
+      const val = [10, 20];
+      let { target } = ReactiveStorage.registerRecursive('foo', val, {
+        setter: ({ val, prevVal }) => {
+          if (start) {
+            assert.deepEqual(val, [ [ 30, 40 ], 50 ]);
+            assert.deepEqual(prevVal, [ 10, 20 ]);
+          } else {
+            assert.deepEqual(val, [10, 20]);
+            assert.isUndefined(prevVal);
+          }
+        },
+        depth: {
+          setter: false
+        }
+      });
+
+      start = true;
+      target.foo = [ [ 30, 40 ], 50 ];
+    });
   });
 })
 
-describe('Configuration', () => {
-  describe('Default values', () => {
-    it('endpoint', () => {
-      const { config } = create();
-      assert.isNotNull(config[0].endpoint);
-      assert.equal(Object.getPrototypeOf(config[0].endpoint), Object.prototype);
-    });
-    it('target', () => {
-      const { config } = create();
-      assert.isNotNull(config[0].target);
-      assert.equal(Object.getPrototypeOf(config[0].endpoint), Object.prototype);
-    });
-    it('enumerable', () => {
-      const { config } = create();
-      assert.isUndefined(config.enumerable);
-    });
-    it('depthFilter', () => {
-      const { config } = create();
-      assert.isUndefined(config.depthFilter);
-    });
-    it('depth', () => {
-      const { config } = create();
-      assert.isUndefined(config.depth);
-    });
-    it('setter', () => {
-      const { config } = create();
-      assert.isUndefined(config.setter, 'setter');
-    });
-    it('getter', () => {
-      const { config } = create();
-      assert.isUndefined(config.getter, 'getter');
-    });
-    it('postSetter', () => {
-      const { config } = create();
-      assert.isUndefined(config.postSetter, 'postSetter');
+describe('PostSetter', () => {
+  describe('Parameters', () => {
+    describe('`prevVal`', () => {
+      it('Should be the previous value when using default endpoints', () => {
+        let start = false;
+        let { target } = ReactiveStorage.registerRecursive('foo', [ 10, 20 ], {
+          postSetter: ({ val, prevVal }) => {
+            if (start) {
+              assert.deepEqual(val, [ [ 30, 40 ], 50 ]);
+              assert.deepEqual(prevVal, [ 10, 20 ]);
+            } else {
+              assert.deepEqual(val, [10, 20]);
+              assert.isUndefined(prevVal);
+            }
+          },
+          depth: {}
+        });
+
+        start = true;
+        target.foo = [ [ 30, 40 ], 50 ];
+      });
+      it('Should be the previous value with custom endpoints', () => {
+        let start = false;
+        let { target } = ReactiveStorage.registerRecursive('foo', [ 10, 20 ], {
+          shallowEndpoint: {},
+          postSetter: ({ val, prevVal }) => {
+            if (start) {
+              assert.deepEqual(val, [ [ 30, 40 ], 50 ]);
+              assert.deepEqual(prevVal, [ 10, 20 ]);
+            } else {
+              assert.deepEqual(val, [10, 20]);
+              assert.isUndefined(prevVal);
+            }
+          },
+          depth: {}
+        });
+
+        start = true;
+        target.foo = [ [ 30, 40 ], 50 ];
+      });
+      it('Should be the previous value in the second target with custom endpoints', () => {
+        let start = false;
+        let { target } = ReactiveStorage.registerRecursive('foo', [ 10, 20 ], [
+          {
+            target: {},
+          }, {
+            shallowEndpoint: {},
+            postSetter: ({ val, prevVal }) => {
+              if (start) {
+                assert.deepEqual(val, [ [ 30, 40 ], 50 ]);
+                assert.deepEqual(prevVal, [ 10, 20 ]);
+              } else {
+                assert.deepEqual(val, [10, 20]);
+                assert.isUndefined(prevVal);
+              }
+            },
+            depth: {}
+          }
+        ]);
+
+        start = true;
+        target.foo = [ [ 30, 40 ], 50 ];
+      });
     });
   })
 });
 
 describe('Configuration', () => {
+  describe('Enumerability', () => {
+    it('Should be enumerable by default', () => {
+      const { target } = ReactiveStorage.register('foo', 3);
+      assertIsEnumerable(target, 'foo');
+    });
+    it('Should be deeply enumerable by default', () => {
+      const { target } = ReactiveStorage.registerRecursive('foo', { a: { b: 3 } });
+      assertIsEnumerable(target, 'foo');
+      assertIsEnumerable(target.foo, 'a');
+      assertIsEnumerable(target.foo.a, 'b');
+    });
+    it('Should not be deeply enumerable as per the config', () => {
+      const { target } = ReactiveStorage.registerRecursive('foo', { a: { b: 3 } }, {
+        enumerable: false
+      });
+      assertIsNotEnumerable(target, 'foo');
+      assertIsNotEnumerable(target.foo, 'a');
+      assertIsNotEnumerable(target.foo.a, 'b');
+    });
+  });
   describe("Depth inheritance", () => {
-    it('Stop inheritance with explicit `false`', () => {
+    it('Should not inherit config with an explicit depth config (except `enumerable`)', () => {
       let post = 0;
       let set = 0;
       let get = 0;
       const config = {
-        endpoint: {},
-        target: {},
+        enumerable: false,
+        postSetter: () => {
+          post++;
+        },
+        setter: () => {
+          set++;
+        },
+        getter: ({ val }) => {
+          get++;
+        },
+        depth: {},
+      };
+      const c = ReactiveStorage.registerRecursive('foo', { a: { b: 3 } }, config);
+      assert.equal(post, 1);
+      assert.equal(set, 1);
+      assert.equal(get, 0);
+
+      c.target.foo;
+      assert.equal(get, 1);
+
+      assertIsNotEnumerable(c.target, 'foo');
+      assertIsNotEnumerable(c.target.foo, 'a');
+    });
+    it('Should inherit config with a depth set to a number', () => {
+      let post = 0;
+      let set = 0;
+      let get = 0;
+      const config = {
         enumerable: false,
         postSetter: () => {
           post++;
@@ -525,21 +628,18 @@ describe('Configuration', () => {
         getter: () => {
           get++;
         },
-        depth: {
-          postSetter: false,
-          setter: false,
-          getter: false,
-        },
-      }
-      const s = create(config);
-
-      s.register('foo', [[1]]);
-      assert.equal(post, 1);
-      assert.equal(set, 1);
+        depth: Infinity,
+      };
+      const c = ReactiveStorage.registerRecursive('foo', { a: { b: 3 } }, config);
+      assert.equal(post, 3);
+      assert.equal(set, 3);
       assert.equal(get, 0);
 
-      s.target.foo;
-      assert.equal(get, 1);
+      c.target.foo.a.b;
+      assert.equal(get, 3);
+
+      assertIsNotEnumerable(c.target, 'foo');
+      assertIsNotEnumerable(c.target.foo, 'a');
     });
   });
 });
@@ -549,27 +649,16 @@ describe('Endpoint', () => {
     const c = ReactiveStorage.register('foo', 3);
 
     assertHasGetter(c.target, 'foo');
-    assertHasValue(c.endpoint, 'foo');
+    assertHasValue(c.shallowEndpoint, 'foo');
   });
   it('Endpoint = {}', () => {
-    const endpoint = {};
-    const c = ReactiveStorage.register('foo', 3, { endpoint });
+    const shallowEndpoint = {};
+    const c = ReactiveStorage.register('foo', 3, { shallowEndpoint });
 
     assertHasGetter(c.target, 'foo');
-    assertHasValue(endpoint, 'foo');
+    assertHasValue(shallowEndpoint, 'foo');
 
     c.target.foo = 'bar';
-    assert.equal(endpoint.foo, 'bar');
-  });
-  it('Deep values are stored within the same object', () => {
-    const c = ReactiveStorage.registerRecursive('foo', { bar: 3 });
-    assert.equal(c.target.foo.bar, c.endpoint.foo.bar);
-
-    c.target.foo.bar = 4;
-    assert.equal(c.target.foo.bar, c.endpoint.foo.bar);
-
-    c.endpoint.foo.bar = { lor: 40 };
-    assert.equal(c.target.foo.bar, c.endpoint.foo.bar);
-    assert.equal(c.target.foo.bar.lor, c.endpoint.foo.bar.lor);
+    assert.equal(shallowEndpoint.foo, 'bar');
   });
 });
