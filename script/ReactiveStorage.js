@@ -99,9 +99,10 @@ export class ReactiveStorage {
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @privateRemarks
-     * There is currently no way to make the generics sound since they cannot be
-     * optional without a default value.
+     * @remarks
+     * There is currently no way to make the generics sound (bind value only to
+     * the given keys of a given interface, instead of all values within KV)
+     * since they cannot be optional without a default value.
      */
     static register(key, initialValue, config = {}) {
         const opts = this.#prepareConfig(config);

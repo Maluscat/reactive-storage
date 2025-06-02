@@ -57,9 +57,9 @@ export interface RegistrationData<KV extends Record<ObjectKey, any>> {
     targets: Target<KV>[];
 }
 /** {@link Options.getter} event argument. */
-export interface GetterEvent {
+export interface GetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
     /** Value that was fetched from the underlying endpoint. */
-    val: any;
+    val: KV[keyof KV];
     /**
      * Key path of the property in question, starting with the registered key.
      *
@@ -78,16 +78,16 @@ export interface GetterEvent {
      * // "GET: ['value', 'first', 'second']"
      * ```
      */
-    path: ObjectKey[];
+    path: (keyof KV)[];
 }
 /** {@link Options.postSetter} event argument. */
-export interface PostSetterEvent {
+export interface PostSetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
     /** Value that was set. */
-    val: any;
+    val: KV[keyof KV];
     /** Whether this call is propagated by the initial registration action. */
     initial: boolean;
     /** Previous value. */
-    prevVal: any;
+    prevVal: KV[keyof KV];
     /**
      * Key path of the property in question, starting with the registered key.
      *
@@ -104,12 +104,12 @@ export interface PostSetterEvent {
      * // "SET: ['value', 'first', 'second']"
      * ```
      */
-    path: ObjectKey[];
+    path: (keyof KV)[];
 }
 /** {@link Options.setter} event argument. */
-export interface SetterEvent extends PostSetterEvent {
+export interface SetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> extends PostSetterEvent<KV> {
     /** Value to be set. */
-    val: any;
+    val: KV[keyof KV];
     /**
      * Default setter that can be used to set a value different from the passed
      * one to the expected endpoint. When using it, you should prevent the
@@ -121,7 +121,7 @@ export interface SetterEvent extends PostSetterEvent {
 export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
     [Prop in keyof OptionsWhole<KV>]?: Prop extends 'depth' ? number | Omit<Options<KV>, 'target' | 'shallowEndpoint'> : OptionsWhole<KV>[Prop];
 };
-export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
+export interface OptionsWhole<KV extends Record<ObjectKey, any>> {
     /**
      * The endpoint that the registered property points to which holds the actual
      * data, so an object that the configured setter and getter will deposit the
@@ -238,11 +238,11 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      *
      * @default 0
      */
-    depth?: number | Omit<OptionsWhole, 'target' | 'shallowEndpoint'>;
+    depth?: number | Omit<OptionsWhole<KV>, 'target' | 'shallowEndpoint'>;
     /**
      * Called *after* a value has been set.
      */
-    postSetter?: 'inherit' | ((event: PostSetterEvent) => void);
+    postSetter?: 'inherit' | ((event: PostSetterEvent<KV>) => void);
     /**
      * Called *before* a value is set.
      *
@@ -250,7 +250,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * This can be useful to filter specific values or when setting them manually,
      * in which case the passed {@link SetterEvent.set} is useful.
      */
-    setter?: 'inherit' | ((event: SetterEvent) => void | boolean);
+    setter?: 'inherit' | ((event: SetterEvent<KV>) => void | boolean);
     /**
      * Called anytime a value is fetched.
      *
@@ -272,7 +272,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any> = Record<ObjectK
      * // "GET 8"
      * ```
      */
-    getter?: 'inherit' | ((event: GetterEvent) => any);
+    getter?: 'inherit' | ((event: GetterEvent<KV>) => KV[keyof KV]);
 }
 /**
  * Provides some useful filter functions for use in
@@ -344,11 +344,12 @@ export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> implemen
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
      *
-     * @privateRemarks
-     * There is currently no way to make the generics sound since they cannot be
-     * optional without a default value.
+     * @remarks
+     * There is currently no way to make the generics sound (bind value only to
+     * the given keys of a given interface, instead of all values within KV)
+     * since they cannot be optional without a default value.
      */
-    static register<KV extends Record<K, V>, K extends ObjectKey = keyof KV, V extends any = KV[K]>(key: K | K[], initialValue?: V, config?: Configuration<KV>): RegistrationData<KV>;
+    static register<KV extends Record<ObjectKey, any>, K extends ObjectKey = keyof KV>(key: K | K[], initialValue?: KV[K], config?: Configuration<KV>): RegistrationData<KV>;
     /**
      * Register all property keys and symbols of the given object with their
      * respective values. If left unspecified, target and/or shallow endpoint
@@ -369,7 +370,7 @@ export declare class ReactiveStorage<KV extends Record<ObjectKey, any>> implemen
      * @param key The property name to register.
      * @param initialValue The initial value that will be assigned after registering.
      */
-    static registerRecursive<KV extends Record<K, V>, K extends ObjectKey = keyof KV, V extends any = KV[K]>(key: K | K[], initialValue?: V, config?: Configuration<KV>): RegistrationData<KV>;
+    static registerRecursive<KV extends Record<ObjectKey, any>, K extends keyof KV = keyof KV>(key: K | K[], initialValue?: KV[K], config?: Configuration<KV>): RegistrationData<KV>;
     /**
      * Same as {@link registerFrom} but register all properties within the given
      * object infinitely deep.
