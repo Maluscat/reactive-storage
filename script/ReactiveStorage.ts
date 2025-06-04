@@ -328,11 +328,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
   /** Delete {@link target} and {@link shallowEndpoint} entry of a registered property. */
   delete(key: ObjectKey) {
     if (this.has(key)) {
-      if (this.shallowEndpoint instanceof Map) {
-        this.shallowEndpoint.delete(key);
-      } else {
-        delete this.shallowEndpoint[key];
-      }
+      delete this.shallowEndpoint[key];
       for (const target of this.targets) {
         // @ts-ignore Checked for property existence above
         delete target[key];
@@ -512,8 +508,8 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     const customPostSetter = (config.postSetter !== 'inherit' && config.postSetter) || undefined;
     const enumerable = config.enumerable != null ? config.enumerable : true;
 
-    let getter = ReactiveStorage.#makeGetter(endpoint, key);
-    let setter = ReactiveStorage.#makeSetter(endpoint, key);
+    let getter = () => endpoint[key];
+    let setter = (val: KV[K]) => endpoint[key] = val;
     let initial = true;
 
     let depthOpts: undefined | Options;
@@ -570,7 +566,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
           }
           getter = () => depthOpts.target;
         } else {
-          getter = ReactiveStorage.#makeGetter(endpoint, key);
+          getter = () => endpoint[key];
         }
         customPostSetter?.({ val, prevVal, initial, path });
       },
@@ -581,30 +577,6 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
       target[key] = initialValue;
     }
     initial = false;
-  }
-
-  /**
-   * Return a function that gets the given key from the given endpoint.
-   * @internal
-   */
-  static #makeGetter(endpoint: StorageRecord, key: ObjectKey): () => any {
-    if (endpoint instanceof Map) {
-      return () => endpoint.get(key);
-    } else {
-      return () => endpoint[key];
-    }
-  }
-  /**
-   * Return a function that sets a value at the given endpoint
-   * keyed by the given key.
-   * @internal
-   */
-  static #makeSetter(endpoint: StorageRecord, key: ObjectKey): (val: any) => void {
-    if (endpoint instanceof Map) {
-      return (val: any) => endpoint.set(key, val);
-    } else {
-      return (val: any) => endpoint[key] = val;
-    }
   }
 
   /**
