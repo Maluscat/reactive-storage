@@ -1,6 +1,6 @@
 export type ObjectKey = number | string | symbol;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
-export type Endpoint = Record<ObjectKey, any> | Map<ObjectKey, any>;
+export type StorageRecord = Record<ObjectKey, any>;
 export type Target<KV> = {
   [ Key in keyof KV ]: KV[Key]
 };
@@ -27,24 +27,24 @@ export type Target<KV> = {
  * // Second getter turns 62 into 60
  * ```
  *
- * @see {@link OptionsWhole}
+ * @see {@link Options}
  */
-export type Configuration<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> =
+export type Configuration<KV extends StorageRecord = StorageRecord> =
   Options<KV> |
   [ ...Omit<Options<KV>, 'endpoint'>[], Options<KV> ];
 
-export interface RegistrationData<KV extends Record<ObjectKey, any>> {
+export interface RegistrationData<KV extends StorageRecord> {
   /**
    * The endpoint holding the actual data of the registered properties.
    *
-   * @see {@link OptionsWhole.shallowEndpoint}
+   * @see {@link Options.shallowEndpoint}
    */
-  shallowEndpoint: Endpoint;
+  shallowEndpoint: StorageRecord;
   /**
    * The first access point for registered properties.
    * Always the first element of {@link targets}.
    * 
-   * @see {@link OptionsWhole.target}
+   * @see {@link Options.target}
    */
   target: Target<KV>;
   /**
@@ -53,13 +53,13 @@ export interface RegistrationData<KV extends Record<ObjectKey, any>> {
    * multiple intermediate storage points. Otherwise {@link target} can be used
    * as well.
    *
-   * @see {@link OptionsWhole.targets}
+   * @see {@link Options.targets}
    */
   targets: Target<KV>[];
 }
 
 /** {@link Options.getter} event argument. */
-export interface GetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
+export interface GetterEvent<KV extends StorageRecord = StorageRecord> {
   /** Value that was fetched from the underlying endpoint. */
   val: KV[keyof KV];
   /**
@@ -83,7 +83,7 @@ export interface GetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKe
   path: (keyof KV)[];
 }
 /** {@link Options.postSetter} event argument. */
-export interface PostSetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> {
+export interface PostSetterEvent<KV extends StorageRecord = StorageRecord> {
   /** Value that was set. */
   val: KV[keyof KV];
   /** Whether this call is propagated by the initial registration action. */
@@ -109,7 +109,7 @@ export interface PostSetterEvent<KV extends Record<ObjectKey, any> = Record<Obje
   path: (keyof KV)[];
 }
 /** {@link Options.setter} event argument. */
-export interface SetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> extends PostSetterEvent<KV> {
+export interface SetterEvent<KV extends StorageRecord = StorageRecord> extends PostSetterEvent<KV> {
   /** Value to be set. */
   val: KV[keyof KV];
   /**
@@ -120,14 +120,11 @@ export interface SetterEvent<KV extends Record<ObjectKey, any> = Record<ObjectKe
   set: (val: any) => void
 }
 
-/** @see {@link OptionsWhole} */
-export type Options<KV extends Record<ObjectKey, any> = Record<ObjectKey, any>> = {
-  [ Prop in keyof OptionsWhole<KV> ]?: Prop extends 'depth'
-    ? number | Omit<Options<KV>, 'target' | 'shallowEndpoint'>
-    : OptionsWhole<KV>[Prop]
-}
+/** Same as {@link Options} but with some properties present. */
+export type OptionsWhole<KV extends StorageRecord> = 
+  Options & Required<Pick<Options, 'shallowEndpoint' | 'target'>>
 
-export interface OptionsWhole<KV extends Record<ObjectKey, any>> {
+export interface Options<KV extends StorageRecord = StorageRecord> {
   /**
    * The endpoint that the registered property points to which holds the actual
    * data, so an object that the configured setter and getter will deposit the
@@ -138,13 +135,13 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any>> {
    *
    * @default {}
    */
-  shallowEndpoint: Endpoint;
+  shallowEndpoint?: StorageRecord;
   /**
    * An object that represents the access point for the registered properties.
    * Values are deposited at the specified {@link shallowEndpoint}.
    * @default {}
    */
-  target: Target<KV>;
+  target?: Target<KV>;
   /**
    * Decide whether to deeply register an object covered by {@link depth}.
    * This is useful to mitigate registering properties within *any* object
@@ -244,7 +241,7 @@ export interface OptionsWhole<KV extends Record<ObjectKey, any>> {
    *
    * @default 0
    */
-  depth?: number | Omit<OptionsWhole<KV>, 'target' | 'shallowEndpoint'>;
+  depth?: number | Omit<Options<KV>, 'target' | 'shallowEndpoint'>;
   /**
    * Called *after* a value has been set.
    */
@@ -307,7 +304,7 @@ export const Filter = {
  * {@link ReactiveStorage.registerRecursive} or
  * {@link ReactiveStorage.registerRecursiveFrom}.
  */
-export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements RegistrationData<KV> {
+export class ReactiveStorage<KV extends StorageRecord> implements RegistrationData<KV> {
   /** @see {@link Filter} */
   static readonly Filter = Filter;
 
@@ -394,7 +391,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    * since they cannot be optional without a default value.
    */
   static register<
-    KV extends Record<ObjectKey, any>,
+    KV extends StorageRecord,
     K extends ObjectKey = keyof KV,
   >(
     key: K | K[],
@@ -412,7 +409,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    *
    * @param object The object the keys and symbols of will be registered.
    */
-  static registerFrom<KV extends Record<ObjectKey, any>>(
+  static registerFrom<KV extends StorageRecord>(
     object: KV,
     config: Configuration<KV>
   ) {
@@ -439,7 +436,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    * @param initialValue The initial value that will be assigned after registering.
    */
   static registerRecursive<
-    KV extends Record<ObjectKey, any>,
+    KV extends StorageRecord,
     K extends keyof KV = keyof KV
   >(
     key: K | K[],
@@ -459,7 +456,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    *
    * @param object The object the keys and symbols of will be registered.
    */
-  static registerRecursiveFrom<KV extends Record<ObjectKey, any>>(
+  static registerRecursiveFrom<KV extends StorageRecord>(
     object: KV,
     config: Configuration<KV>
   ) {
@@ -476,7 +473,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
 
   // ---- Static helpers ----
   static #registerGeneric<
-    KV extends Record<ObjectKey, any>,
+    KV extends StorageRecord,
     K extends keyof KV,
   >(
     key: K | K[],
@@ -496,7 +493,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
   }
 
   static #register<
-    KV extends Record<ObjectKey, any>,
+    KV extends StorageRecord,
     K extends keyof KV,
   >(
     key: K,
@@ -506,7 +503,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     path: K[] = [key]
   ) {
     const target = config.target || {} as Target<KV>;
-    const endpoint = config.shallowEndpoint || {} as Endpoint;
+    const endpoint = config.shallowEndpoint || {} as StorageRecord;
 
     // These simply discard any potential 'inherit' values
     const depthFilter = (config.depthFilter !== 'inherit' && config.depthFilter) || Filter.objectLiteralOrArray;
@@ -590,7 +587,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    * Return a function that gets the given key from the given endpoint.
    * @internal
    */
-  static #makeGetter(endpoint: Endpoint, key: ObjectKey): () => any {
+  static #makeGetter(endpoint: StorageRecord, key: ObjectKey): () => any {
     if (endpoint instanceof Map) {
       return () => endpoint.get(key);
     } else {
@@ -602,7 +599,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    * keyed by the given key.
    * @internal
    */
-  static #makeSetter(endpoint: Endpoint, key: ObjectKey): (val: any) => void {
+  static #makeSetter(endpoint: StorageRecord, key: ObjectKey): (val: any) => void {
     if (endpoint instanceof Map) {
       return (val: any) => endpoint.set(key, val);
     } else {
@@ -617,7 +614,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
    * config is shallowly cloned.
    * @internal
    */
-  static #prepareConfig<KV extends Record<ObjectKey, any>>(config: Configuration<KV>) {
+  static #prepareConfig<KV extends StorageRecord>(config: Configuration<KV>) {
     if (Array.isArray(config)) {
       for (let i = config.length - 1; i >= 0; i--) {
         config[i] = Object.assign({ target: {} }, config[i]);
@@ -639,7 +636,7 @@ export class ReactiveStorage<KV extends Record<ObjectKey, any>> implements Regis
     }
   }
 
-  static #getDataFromConfigs<KV extends Record<ObjectKey, any>>(
+  static #getDataFromConfigs<KV extends StorageRecord>(
     config: OptionsWhole<KV>[]
   ): RegistrationData<KV> {
     return {
