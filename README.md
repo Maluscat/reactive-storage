@@ -192,17 +192,17 @@ constructor which is used every time a property is registered. The static
 methods take the configuration on a per-registration basis.
 
 The used configuration is stored in the `config` instance property. The
-target(s) and endpoint are additionally exposed via the `targets`, `target` and
-`endpoint` properties. `target` always points to the first item of `targets`, so
-unless you're using [multiple targets](#multiple-sequential-targets), you can
-always use that one.
+target(s) and the shallow endpoint of the first layer are additionally exposed
+via the `targets`, `target` and `shallowEndpoint` properties. `target` always
+points to the first item of `targets`, so unless you're using [multiple
+targets](#multiple-sequential-targets), you can always use that one.
 
 ```js
 import { ReactiveStorage, Filter } from './ReactiveStorage.js';
 
 const storage = new ReactiveStorage({
   target: {},
-  endpoint: {},
+  shallowEndpoint: {},
   enumerable: true,
   depth: 0,
   depthFilter: Filter.objectLiteralOrArray,
@@ -234,20 +234,20 @@ registerFrom(data: object): ReactiveStorage
 
 #### Static
 The static methods optionally take a [configuration](#configuration) and return
-an object containing the used targets and endpoint, in which `target` points to
-the first item in `targets`.
+an object containing the used targets and the shallow endpoint of the first
+layer, in which `target` points to the first item in `targets`.
 ```ts
 register(
   key: number | string | symbol | (number | string | symbol)[],
   initialValue?: any,
   options: RegistrationOptions = {}
-): { targets: object[], target: object, endpoint: object }
+): { targets: object[], target: object, shallowEndpoint: object }
 ```
 ```ts
 registerFrom(
   data: object,
   options: RegistrationOptions = {}
-): { targets: object[], target: object, endpoint: object }
+): { targets: object[], target: object, shallowEndpoint: object }
 ```
 
 There are helper functions to extend each of the above defined functions with
@@ -257,13 +257,13 @@ registerRecursive(
   key: number | string | symbol | (number | string | symbol)[],
   initialValue?: any,
   options?: RegistrationOptions = {}
-): { targets: object[], target: object, endpoint: object }
+): { targets: object[], target: object, shallowEndpoint: object }
 ```
 ```ts
 registerRecursiveFrom(
   data: object,
   options: RegistrationOptions = {}
-): { targets: object[], target: object, endpoint: object }
+): { targets: object[], target: object, shallowEndpoint: object }
 ```
 
 ### Configuring deep values
@@ -273,30 +273,33 @@ register any properties (including symbols) of an assigned object again,
 provided that it matches the [`depthFilter`](#depthfilter) config option.
 
 If given a *number*, this will be the max depth until which assigned values will
-be registered. In this case, a layer's options except `target` and `endpoint`
-will be inherited from its parent config unless explicitly set to `false`.
+be registered. In this case, a layer's options except `target` and
+`shallowEndpoint` will be inherited from its parent config.
 
 A given *configuration* will define options for that specific layer, which is
 useful to specify individual getters/setters for each layer of depth. The
-`target` option must not be specified (since it will change with each new
-assignment). Missing options except `endpoint` and `target` will be inherited
-from its parent unless explicitly set to `false`. Instead of extensively nesting
-depth configurations, you can also make use of the [getter/setter](#setter)
-`path` argument (specifically, its length).
+`target` and `shallowEndpoint` options must not be specified (since they will
+change with each new assignment). Missing options can be inherited using the
+special keyword `"inherit"`, with the exception of `enumerable`, which will
+always be inherited unless overridden.
+
+> [!tip]
+> Instead of extensively nesting depth configurations, you can also make use of
+> the [getter/setter](#setter) `path` argument (specifically, its length).
 
 Here, three explicit reactivity layers are defined, each of which define an
 individual setter while inheriting the topmost getter. Layer 2 defines one
-additional implicit layer. Any layers below that won't be reactive. Note how
-the `path` argument of the first two setters always has the same length since
-they are not inherited downwards:
+additional implicit layer. Any layers below that won't be reactive:
 ```js
 const storage = new ReactiveStorage({
   depth: {
     depth: {
       setter: ({ val, path }) => { console.log(`Layer 2 or 3 SET ${path.join('.')}:`, val) },
+      getter: 'inherit',
       depth: 1
     },
     setter: ({ val, path }) => { console.log(`Layer 1 SET ${path.join('.')}:`, val) },
+    getter: 'inherit',
   },
   setter: ({ val, path }) => { console.log(`Layer 0 SET ${path.join('.')}:`, val) },
   getter: ({ val, path }) => { console.log(`GET ${path.join('.')}:`, val) },
@@ -379,7 +382,7 @@ storage.target.foo = 3;
 
 ### Intercepting values
 By default, a **setter** is passive: after being called, the passed value will
-automatically be set to the property's respective endpoint. However, a setter
+automatically be set to the property's current endpoint. However, a setter
 can return `true` to prevent the value from being set. In addition, a
 modified/custom value can be assigned instead using the passed default setter
 `set` (after which `true` should always be returned to prevent setting a value
@@ -395,7 +398,6 @@ will always be clamped to the range [0, 100]. When fetched, they will be rounded
 to the nearest 5:
 ```js
 const storage = new ReactiveStorage({
-  depth: Infinity,
   getter: ({ val }) => {
     return Math.round(val / 5) * 5;
   },
@@ -411,34 +413,36 @@ const storage = new ReactiveStorage({
   },
 });
 storage.register('foo', 38);
-console.log(storage.endpoint.foo) // 38
+console.log(storage.shallowEndpoint.foo) // 38
 console.log(storage.target.foo) // 40
 
 storage.target.foo = -6;
-console.log(storage.endpoint.foo) // 0
+console.log(storage.shallowEndpoint.foo) // 0
 console.log(storage.target.foo) // 0
 
 storage.target.foo = 52;
-console.log(storage.endpoint.foo) // 52
+console.log(storage.shallowEndpoint.foo) // 52
 console.log(storage.target.foo) // 50
 
 storage.target.foo = 'bar'
-console.log(storage.endpoint.foo) // 52
+console.log(storage.shallowEndpoint.foo) // 52
 console.log(storage.target.foo) // 50
 ```
 
 ### Multiple sequential targets
 It's easy to setup multiple target points by passing multiple respective
 configurations, which a value is sequentially routed through until it reaches
-the endpoint (See "horizontal scaling" in [Concepts](#concepts)). Only the last
-configuration may define the `endpoint` property – In all others, it will be
-overridden.
+the endpoint (See "horizontal scaling" in [Concepts](#concepts)).
 
 All defined targets (one for each passed configuration) are stored in the
 `targets` property of either the returned data when using the static methods or
 of the created instance. The `target` property always points to the first
 element in `targets` and can be conveniently used when only one target has been
 defined.
+
+> [!tip]
+> Consider utilizing this system and configuring an additional target instead of
+> using a (shallow) endpoint.
 
 Here, two layers are defined. The first does high-level work such as validating
 its values while the second does some mandatory operations. In one possible
@@ -475,8 +479,9 @@ has(key: number | string | symbol): boolean
 ```
 
 The `delete(...)` instance method deletes a registered property from the
-instance's `target` and `endpoint`. Returns true if a property was successfully
-deleted (speak, if the property had been registered), false otherwise.
+instance's `target` and `shallowEndpoint`. Returns true if a property was
+successfully deleted (speak, if the property had been registered), false
+otherwise.
 
 Deep properties will not be deleted because the class does not hold a reference
 to them. As such, they will be garbage collected instead.
@@ -489,12 +494,15 @@ Since TypeScript is an entirely static language, there is no way to propagate
 type information from an instance method to an instance property. This is why,
 without additional information, only the `target`/`targets` returned by the two
 static methods `ReactiveStorage.register(...)` and
-`ReactiveStorage.registerRecursive(...)` knows about the registered properties.
+`ReactiveStorage.registerRecursive(...)` know about the registered properties.
 
 To supply additional type information, a property-value interface can be passed
 as a generic to the `ReactiveStorage` class or the static methods mentioned
-above. This is the best I can do since Typescript generics are quite limited
-(I'd be happy to be convinced of the contrary!).
+above.
+
+Sadly, TS is quite limited when it comes to generics and cannot match the given
+property names to the given value when using static functions; To do that, you
+need to pass the property names into the generic as well (it's so dumb).
 
 ```ts
 interface Properties {
@@ -512,7 +520,7 @@ storage.register('foo', 4);
 // 'foo', 'bar', 'baz' and their respective types
 
 // Analogously:
-ReactiveStorage.register<Properties>('foo', 4);
+ReactiveStorage.register<Properties, 'foo'>('foo', 4);
 ```
 
 
@@ -527,24 +535,31 @@ optional.
 - Default: `{}`
 
 The access point for the registered property/properties. Values are deposited at
-the [endpoint](#endpoint). Can be *any* object, so it may also be an array, a
-class instance, etc.
+the [endpoint](#shallowEndpoint) *shallowly*. Can be *any* object, so it may
+also be an array, a class instance, etc.
 
-This property may only be defined in the topmost level of a configuration and
-not within [`depth`](#depth) since these change on each assignment.
+> [!note]
+> This property may only be defined in the topmost level of a configuration and
+> not within [`depth`](#depth).
 
-### `endpoint`
+### `shallowEndpoint`
 - Type: `object`
 - Default: `{}`
 
-The object that holds the actual data of registered properties.
-The configured setter and getter will deposit the value to and fetch the
-value from this endpoint respectively.
+The object that holds the actual data of registered properties *shallowly*. The
+configured setter and getter will deposit the value to and fetch the value from
+this endpoint respectively.
 
-Can be accessed directly to bypass all specified setters and getters. In a
-classic use case, it can be a good idea to use the endpoint for internal use,
-while the setters/getters on the target do some extra work when accessed by a
-user.
+Consider using a [second target](#multiple-sequential-targets) instead.
+
+> [!important]
+> The shallow endpoint's value will NOT be updated if a sub-property is changed.
+> As a rule of thumb, this property should rarely every be used, and never so if
+> any sort of depth is configured. This would lead to errors and confusion.
+
+> [!note]
+> This property may only be defined in the topmost level of a configuration and
+> not within [`depth`](#depth).
 
 ### `enumerable`
 - Type: `boolean`
@@ -563,10 +578,11 @@ of the same name.
 Whether and how keys inside object values should be registered such that they go
 through additional layers of getters and setters. If a value is reassigned, it
 is re-registered with the same configuration until the configured depth.
+The properties `target` and `shallowEndpoint` are not allowed.
 
 **If given a configuration**, the registered property will assume these options
-in its layer and inherit missing ones unless set to `false`. Can be nested
-infinitely deep.
+in its layer. Can be nested infinitely deep. Options except `enumerable` can be
+explicitly inherited from the parent config with the keyword `"inherit".`
 
 **If given a number**, keys will be registered recursively up until the given
 depth, inheriting the parent options. Can be `Infinity`.
@@ -619,9 +635,8 @@ The passed event object has the following properties:
 Called anytime a value is fetched. Return `null` or `undefined` to propagate the
 default value. Any other return value will be the property's value.
 
-As inferred in [Concepts](#concepts), deep properties require a lot of `getter`
-calls, so when using depth extensively, you should probably keep inherited
-getter functions lightweight.
+Deep properties require a lot of `getter` calls, so when using depth
+extensively, you should probably keep inherited getter functions lightweight.
 
 The passed event object has the following properties:
 - `val`: The value from the underlying endpoint
@@ -641,7 +656,7 @@ const data = {
 };
 
 // We just extract `target` because we only have a single target
-// and don't care about `endpoint`
+// and don't care about `shallowEndpoint`
 const { target } = ReactiveStorage.registerFrom(data, {
   setter: ({ val, path }) => { console.log(`${path}: ${val}`) }
 });
