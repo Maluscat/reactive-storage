@@ -1,3 +1,4 @@
+// ---- General types ----
 export type ObjectKey = number | string | symbol;
 export type FilterFunction = (obj: object, path: ObjectKey[]) => boolean;
 export type StorageRecord = Record<ObjectKey, any>;
@@ -5,34 +6,8 @@ export type Target<KV> = {
   [ Key in keyof KV ]: KV[Key]
 };
 
-/**
- * Central configuration for registering properties.
- *
- * If given an array, properties will be registered separately for each
- * configuration, each pointing to the next by linking their endpoints and
- * targets. This results in multiple intermediate sequential data storages,
- * propagated from last to first.
- *
- * @example
- * ```js
- * const storage = new ReactiveStorage([
- *   { getter: ({ val }) => Math.round(val / 50) * 50 },
- *   { getter: ({ val }) => Math.round(val / 5) * 5 },
- * ]);
- * storage.registerRecursive('value', 62);
- *
- * console.log(storage.targets[1].value) // 60
- * // Second getter turns 62 into 60
- * console.log(storage.targets[0].value) // 50
- * // Second getter turns 62 into 60
- * ```
- *
- * @see {@link Options}
- */
-export type Configuration<KV extends StorageRecord = StorageRecord> =
-  Options<KV> |
-  [ ...Omit<Options<KV>, 'endpoint'>[], Options<KV> ];
 
+// ---- General interfaces ----
 export interface RegistrationData<KV extends StorageRecord> {
   /**
    * The endpoint holding the actual data of the registered properties.
@@ -120,10 +95,8 @@ export interface SetterEvent<KV extends StorageRecord = StorageRecord> extends P
   set: (val: any) => void
 }
 
-/** Same as {@link Options} but with some properties present. */
-export type OptionsWhole<KV extends StorageRecord> = 
-  Options & Required<Pick<Options, 'shallowEndpoint' | 'target'>>
 
+// ---- Configuration interfaces ----
 export interface Options<KV extends StorageRecord = StorageRecord> {
   /**
    * The endpoint that the registered property points to which holds the actual
@@ -141,7 +114,7 @@ export interface Options<KV extends StorageRecord = StorageRecord> {
    * Values are deposited at the specified {@link shallowEndpoint}.
    * @default {}
    */
-  target?: Target<KV>;
+  target?: Partial<Target<KV>>;
   /**
    * Decide whether to deeply register an object covered by {@link depth}.
    * This is useful to mitigate registering properties within *any* object
@@ -279,6 +252,41 @@ export interface Options<KV extends StorageRecord = StorageRecord> {
 }
 
 /**
+ * Central configuration for registering properties.
+ *
+ * If given an array, properties will be registered separately for each
+ * configuration, each pointing to the next by linking their endpoints and
+ * targets. This results in multiple intermediate sequential data storages,
+ * propagated from last to first.
+ *
+ * @example
+ * ```js
+ * const storage = new ReactiveStorage([
+ *   { getter: ({ val }) => Math.round(val / 50) * 50 },
+ *   { getter: ({ val }) => Math.round(val / 5) * 5 },
+ * ]);
+ * storage.registerRecursive('value', 62);
+ *
+ * console.log(storage.targets[1].value) // 60
+ * // Second getter turns 62 into 60
+ * console.log(storage.targets[0].value) // 50
+ * // Second getter turns 62 into 60
+ * ```
+ *
+ * @see {@link Options}
+ */
+export type Configuration<KV extends StorageRecord = StorageRecord> =
+  Options<KV> |
+  [ ...Omit<Options<KV>, 'endpoint'>[], Options<KV> ];
+
+/** Same as {@link Options} but with some properties present. */
+export type OptionsWhole<KV extends StorageRecord> = 
+  Options<KV> & Required<Pick<Options<KV>, 'shallowEndpoint'>> & {
+    target: Target<KV>
+  }
+
+
+/**
  * Provides some useful filter functions for use in
  * {@link Options.depthFilter}.
  *
@@ -292,6 +300,7 @@ export const Filter = {
   /** Matches everything (always returns true). */
   any: () => true,
 } as const satisfies Record<string, FilterFunction>;
+
 
 /**
  * Reactivity helper to register, observe and intercept deeply reactive data
@@ -330,7 +339,6 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     if (this.has(key)) {
       delete this.shallowEndpoint[key];
       for (const target of this.targets) {
-        // @ts-ignore Checked for property existence above
         delete target[key];
       }
       return true;
@@ -349,7 +357,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
    * @return The current {@link ReactiveStorage} instance for easy chaining.
    */
   register<K extends keyof KV>(key: K | K[], initialValue?: KV[K]) {
-    ReactiveStorage.#registerGeneric(key, initialValue, this.config);
+    ReactiveStorage.#registerGeneric<KV, K>(key, initialValue, this.config);
     return this;
   }
   /**
@@ -363,10 +371,10 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
    */
   registerFrom(object: Partial<KV>) {
     for (const key of Object.keys(object)) {
-      ReactiveStorage.#registerGeneric(key, object[key], this.config);
+      ReactiveStorage.#registerGeneric<KV, keyof typeof object>(key, object[key], this.config);
     }
     for (const symbol of Object.getOwnPropertySymbols(object)) {
-      ReactiveStorage.#registerGeneric(symbol, object[symbol], this.config);
+      ReactiveStorage.#registerGeneric<KV, keyof typeof object>(symbol, object[symbol], this.config);
     }
     return this;
   }
@@ -395,7 +403,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     config: Configuration<KV> = {}
   ) {
     const opts = this.#prepareConfig(config);
-    this.#registerGeneric(key, initialValue, opts);
+    this.#registerGeneric<KV, K>(key, initialValue, opts);
     return this.#getDataFromConfigs(opts);
   }
   /**
@@ -411,10 +419,10 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
   ) {
     const opts = this.#prepareConfig(config);
     for (const key of Object.keys(object)) {
-      this.#registerGeneric(key, object[key], opts);
+      this.#registerGeneric<KV, keyof typeof object>(key, object[key], opts);
     }
     for (const symbol of Object.getOwnPropertySymbols(object)) {
-      this.#registerGeneric(symbol, object[symbol], opts);
+      this.#registerGeneric<KV, keyof typeof object>(symbol, object[symbol], opts);
     }
     return this.#getDataFromConfigs(opts);
   }
@@ -440,7 +448,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     config: Configuration<KV> = {}
   ) {
     const opts = this.#prepareConfig(config);
-    this.#registerGeneric(key, initialValue, opts, true);
+    this.#registerGeneric<KV, K>(key, initialValue, opts, true);
     return this.#getDataFromConfigs(opts);
   }
   /**
@@ -458,10 +466,10 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
   ) {
     const opts = this.#prepareConfig(config);
     for (const key of Object.keys(object)) {
-      ReactiveStorage.#registerGeneric(key, object[key], opts, true);
+      ReactiveStorage.#registerGeneric<KV, keyof typeof object>(key, object[key], opts, true);
     }
     for (const symbol of Object.getOwnPropertySymbols(object)) {
-      ReactiveStorage.#registerGeneric(symbol, object[symbol], opts, true);
+      ReactiveStorage.#registerGeneric<KV, keyof typeof object>(symbol, object[symbol], opts, true);
     }
     return this.#getDataFromConfigs(opts);
   }
@@ -480,10 +488,10 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     for (const opts of config) {
       if (Array.isArray(key)) {
         for (const singleKey of key) {
-          this.#register(singleKey, initialValue, opts, recursive);
+          this.#register<KV, K>(singleKey, initialValue, opts, recursive);
         }
       } else {
-        this.#register(key, initialValue, opts, recursive);
+        this.#register<KV, K>(key, initialValue, opts, recursive);
       }
     }
   }
@@ -512,7 +520,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     let setter = (val: KV[K]) => endpoint[key] = val;
     let initial = true;
 
-    let depthOpts: undefined | Options;
+    let depthOpts: undefined | Options<KV>;
     if (config.depth || recursive) {
       if (typeof config.depth !== 'object') {
         depthOpts = {};
@@ -555,6 +563,7 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
         if (!!depthOpts && typeof val === 'object' && depthFilter(val, path)) {
           // We don't need to save the deep target anywhere
           // because it is exposed via the updated getter below
+          // @ts-ignore
           depthOpts.target = Array.isArray(val) ? [] : {};
           depthOpts.shallowEndpoint = {};
 
@@ -573,7 +582,6 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
     });
 
     if (initialValue !== undefined) {
-      // @ts-ignore ???
       target[key] = initialValue;
     }
     initial = false;
@@ -591,11 +599,9 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
       for (let i = config.length - 1; i >= 0; i--) {
         config[i] = Object.assign({ target: {} }, config[i]);
         if (i > 0) {
-          // @ts-ignore
           config[i - 1].shallowEndpoint = config[i].target;
         }
       }
-      // @ts-ignore
       config[config.length - 1].shallowEndpoint ||= {};
       return config as OptionsWhole<KV>[];
     } else {
@@ -615,6 +621,6 @@ export class ReactiveStorage<KV extends StorageRecord> implements RegistrationDa
       shallowEndpoint: config[config.length - 1].shallowEndpoint,
       target: config[0].target,
       targets: config.map(conf => conf.target),
-    }
+    };
   }
 }

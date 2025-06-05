@@ -44,14 +44,8 @@ export class ReactiveStorage {
     /** Delete {@link target} and {@link shallowEndpoint} entry of a registered property. */
     delete(key) {
         if (this.has(key)) {
-            if (this.shallowEndpoint instanceof Map) {
-                this.shallowEndpoint.delete(key);
-            }
-            else {
-                delete this.shallowEndpoint[key];
-            }
+            delete this.shallowEndpoint[key];
             for (const target of this.targets) {
-                // @ts-ignore Checked for property existence above
                 delete target[key];
             }
             return true;
@@ -184,8 +178,8 @@ export class ReactiveStorage {
         const customSetter = (config.setter !== 'inherit' && config.setter) || undefined;
         const customPostSetter = (config.postSetter !== 'inherit' && config.postSetter) || undefined;
         const enumerable = config.enumerable != null ? config.enumerable : true;
-        let getter = ReactiveStorage.#makeGetter(endpoint, key);
-        let setter = ReactiveStorage.#makeSetter(endpoint, key);
+        let getter = () => endpoint[key];
+        let setter = (val) => endpoint[key] = val;
         let initial = true;
         let depthOpts;
         if (config.depth || recursive) {
@@ -237,6 +231,7 @@ export class ReactiveStorage {
                 if (!!depthOpts && typeof val === 'object' && depthFilter(val, path)) {
                     // We don't need to save the deep target anywhere
                     // because it is exposed via the updated getter below
+                    // @ts-ignore
                     depthOpts.target = Array.isArray(val) ? [] : {};
                     depthOpts.shallowEndpoint = {};
                     for (const propKey of Object.keys(val)) {
@@ -248,41 +243,15 @@ export class ReactiveStorage {
                     getter = () => depthOpts.target;
                 }
                 else {
-                    getter = ReactiveStorage.#makeGetter(endpoint, key);
+                    getter = () => endpoint[key];
                 }
                 customPostSetter?.({ val, prevVal, initial, path });
             },
         });
         if (initialValue !== undefined) {
-            // @ts-ignore ???
             target[key] = initialValue;
         }
         initial = false;
-    }
-    /**
-     * Return a function that gets the given key from the given endpoint.
-     * @internal
-     */
-    static #makeGetter(endpoint, key) {
-        if (endpoint instanceof Map) {
-            return () => endpoint.get(key);
-        }
-        else {
-            return () => endpoint[key];
-        }
-    }
-    /**
-     * Return a function that sets a value at the given endpoint
-     * keyed by the given key.
-     * @internal
-     */
-    static #makeSetter(endpoint, key) {
-        if (endpoint instanceof Map) {
-            return (val) => endpoint.set(key, val);
-        }
-        else {
-            return (val) => endpoint[key] = val;
-        }
     }
     /**
      * Prepare a passed config such that missing endpoints and targets are filled
@@ -296,11 +265,9 @@ export class ReactiveStorage {
             for (let i = config.length - 1; i >= 0; i--) {
                 config[i] = Object.assign({ target: {} }, config[i]);
                 if (i > 0) {
-                    // @ts-ignore
                     config[i - 1].shallowEndpoint = config[i].target;
                 }
             }
-            // @ts-ignore
             config[config.length - 1].shallowEndpoint ||= {};
             return config;
         }
